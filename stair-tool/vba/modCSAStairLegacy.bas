@@ -12,8 +12,9 @@ Option Explicit
 Public Sub CSA_PreviewCurrentWorkbook()
     Dim path As String, message As String
     Dim xs() As Double, ys() As Double, count As Long
-    path = InputBox("Enter the full path to CSA_Stair Drawing Tools.xlsm:", "Preview current workbook")
+    path = InputBox("Enter the Excel file path or its folder:", "Preview current workbook")
     If Len(Trim$(path)) = 0 Then Exit Sub
+    path = ResolveLegacyWorkbookPath(path)
     If Not CSA_ReadLegacyCoordinates(path, xs, ys, count, message) Then
         MsgBox message, vbExclamation, "CSA Stair Drawing"
         Exit Sub
@@ -63,6 +64,21 @@ Cleanup:
 Fail:
     message = "Could not read the current workbook: " & Err.Description
     Resume Cleanup
+End Function
+
+Private Function ResolveLegacyWorkbookPath(ByVal value As String) As String
+    Dim attr As Long, folder As String
+    value = Replace(Trim$(value), """", "")
+    On Error GoTo TreatAsFile
+    attr = GetAttr(value)
+    If (attr And vbDirectory) <> 0 Then
+        folder = value
+        If Right$(folder, 1) <> "\" Then folder = folder & "\"
+        ResolveLegacyWorkbookPath = folder & "CSA_Stair Drawing Tools.xlsm"
+        Exit Function
+    End If
+TreatAsFile:
+    ResolveLegacyWorkbookPath = value
 End Function
 
 Public Sub CSA_DrawLegacyPolyline(ByRef xs() As Double, ByRef ys() As Double, ByVal count As Long, ByVal targetLayer As String)

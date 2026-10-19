@@ -12,8 +12,9 @@ Private Const LAYER_CONCRETE As String = "CSA-CONCRETE"
 Public Sub CSA_PreviewCurrentWorkbook()
     Dim filePath As String, message As String
     Dim xs() As Double, ys() As Double, count As Long
-    filePath = InputBox("Enter the full path to CSA_Stair Drawing Tools.xlsm:", "CSA Stair Drawing")
+    filePath = InputBox("Enter the Excel file path or its folder:" & vbCrLf & "Example: C:\CSA Tools\CSA_Worksheet\CSA_Stair Drawing Tools.xlsm", "CSA Stair Drawing")
     If Len(Trim$(filePath)) = 0 Then Exit Sub
+    filePath = ResolveWorkbookPath(filePath)
     If Not ReadLegacyCoordinates(filePath, xs, ys, count, message) Then
         MsgBox message, vbExclamation, "CSA Stair Drawing"
         Exit Sub
@@ -106,6 +107,21 @@ Cleanup:
 Fail:
     message = "Could not read the workbook: " & Err.Description
     Resume Cleanup
+End Function
+
+Private Function ResolveWorkbookPath(ByVal value As String) As String
+    Dim attr As Long, folder As String
+    value = Replace(Trim$(value), """", "")
+    On Error GoTo TreatAsFile
+    attr = GetAttr(value)
+    If (attr And vbDirectory) <> 0 Then
+        folder = value
+        If Right$(folder, 1) <> "\" Then folder = folder & "\"
+        ResolveWorkbookPath = folder & "CSA_Stair Drawing Tools.xlsm"
+        Exit Function
+    End If
+TreatAsFile:
+    ResolveWorkbookPath = value
 End Function
 
 Private Sub EnsureLayer(ByVal layerName As String, ByVal colorIndex As Integer)
