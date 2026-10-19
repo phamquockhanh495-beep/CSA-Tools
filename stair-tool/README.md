@@ -29,3 +29,7 @@ For the workbook currently in the repository, run `CSA_PreviewCurrentWorkbook`. 
 - no reinforcement design decisions are made by the code. Reinforcement is a separate input contract to be added after the geometry is accepted by the engineer.
 
 The modules are source artifacts. Building a binary `.dvb` with a UserForm still requires AutoCAD VBA on Windows.
+
+## One-file compatibility route
+
+`CSA_StairCase_Compat.bas` is a single standard module with no UDT declarations. Import this one file into a blank DVB or an existing CSA project when the host reports `User-defined type not defined`. It provides `CSA_PreviewCurrentWorkbook`, `CSA_CleanPreviewCommand`, and `CSA_STAIRDRAW` without requiring the other MVP modules.
