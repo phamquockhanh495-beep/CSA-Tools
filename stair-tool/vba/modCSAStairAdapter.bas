@@ -94,7 +94,7 @@ Failed:
 End Function
 
 Public Function CSA_InsertElevation(ByVal point As Variant, ByVal value As String, _
-                                    Optional ByVal scale As Double = 1#) As Object
+                                    Optional ByVal scale As Double = 0.35) As Object
     Set CSA_InsertElevation = CSA_InsertTaggedBlock("Cao do", "11-GB-Cao Do", _
         point, scale, Array("%%P0.000"), Array(value))
 End Function

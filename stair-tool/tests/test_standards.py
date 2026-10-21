@@ -112,6 +112,25 @@ class StandardsTests(unittest.TestCase):
         source = (TOOL / 'vba/modCSAStairGeometry.bas').read_text()
         self.assertNotIn('ByVal f As CSAFlight', source)
 
+    def test_elevation_scale_is_independent_of_other_blocks(self):
+        defaults = self.profile['presentation_defaults']
+        self.assertEqual(defaults['elevation_block_scale'], 0.35)
+        self.assertEqual(defaults['other_block_scale'], 1.0)
+        insertions = {f[2]: f[5] for f in walk(self.defs['c:CSA_STAIR_TEST'])
+                      if isinstance(f, list) and f and f[0] == 'csast:insert'}
+        self.assertEqual(insertions['Cao do'], Symbol('levelscale'))
+        for name in ['Daucat', 'So hieu thep', 'CSA_Sohieu-KCthep']:
+            self.assertEqual(insertions[name], Symbol('scale'))
+        level_defaults = [f for f in walk(self.defs['c:CSA_STAIR_TEST'])
+                          if isinstance(f, list) and len(f) == 3
+                          and f[:2] == [Symbol('setq'), Symbol('levelscale')]
+                          and not isinstance(f[2], list)]
+        self.assertEqual(float(level_defaults[0][2]), defaults['elevation_block_scale'])
+        source = (TOOL / 'vba/modCSAStairAdapter.bas').read_text()
+        match = re.search(r'Function CSA_InsertElevation\b.*?Optional ByVal scale As Double = ([\d.]+)',
+                          source, re.S)
+        self.assertEqual(float(match[1]), defaults['elevation_block_scale'])
+
 
 if __name__ == '__main__':
     unittest.main()

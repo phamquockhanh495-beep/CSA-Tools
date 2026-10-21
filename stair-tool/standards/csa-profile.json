@@ -423,5 +423,15 @@
     "Layer roles are initial mappings, not confirmation of section/rebar drafting conventions.",
     "Block appearance and insertion scale require AutoCAD acceptance.",
     "No automatic recreation or overwriting of existing standards."
-  ]
+  ],
+  "presentation_defaults": {
+    "elevation_block_scale": 0.35,
+    "other_block_scale": 1.0,
+    "evidence": {
+      "dimstyle": "GB 25",
+      "user_feedback": "Elevation block Cao do is appropriately sized at scale 0.35.",
+      "scope": "Elevation only; no automatic scaling law across other DimStyles.",
+      "other_blocks": "Provisional, not accepted as final."
+    }
+  }
 }

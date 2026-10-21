@@ -132,7 +132,7 @@
   (vla-Update o)
   o)
 
-(defun c:CSA_STAIR_TEST (/ *error* doc space issues style base scale height
+(defun c:CSA_STAIR_TEST (/ *error* doc space issues style base scale levelscale height
                          ds name ld csast-created undo-started o item)
   (defun *error* (msg)
     (foreach item csast-created (vl-catch-all-apply 'vla-Delete (list item)))
@@ -156,8 +156,11 @@
            (setq base (getpoint "\nPick test-panel insertion point: ")))
     (progn
       (initget 6)
-      (setq scale (getreal "\nBlock insertion scale <1.0>: "))
+      (setq scale (getreal "\nOther blocks insertion scale <1.0>: "))
       (if (null scale) (setq scale 1.0))
+      (initget 6)
+      (setq levelscale (getreal "\nElevation block Cao do scale <0.35>: "))
+      (if (null levelscale) (setq levelscale 0.35))
       (setq base (trans base 1 0)
             doc (vla-get-ActiveDocument (vlax-get-acad-object))
             space (vla-get-ModelSpace doc)
@@ -181,7 +184,7 @@
         (vlax-3d-point (csast:p base 1500 -500)))))
       (vla-put-Layer o "04-GB-Dim")
       (vla-put-StyleName o style)
-      (csast:insert space "Cao do" (csast:p base 0 200) "11-GB-Cao Do" scale
+      (csast:insert space "Cao do" (csast:p base 0 200) "11-GB-Cao Do" levelscale
         '(("%%P0.000" . "+3.600")))
       (csast:insert space "Daucat" (csast:p base 4000 0) "12-GB-Ky Hieu" scale
         '(("A" . "1-1")))
@@ -194,6 +197,8 @@
       (vla-Regen doc 0)
       (vla-EndUndoMark doc) (setq undo-started nil)
       (princ (strcat "\nTest panel created. DimStyle: " style
+        "; Cao do scale: " (rtos levelscale 2 3)
+        "; other blocks scale: " (rtos scale 2 3)
         ". Check dimension=3000, block shape/scale, font and colors."))
       (princ "\nRun CSA_STAIR_TEST_CLEAR to remove only tagged test objects.")))
   (princ))
