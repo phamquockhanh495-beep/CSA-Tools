@@ -93,14 +93,15 @@
 (defun csast:p (base x y)
   (list (+ (car base) x) (+ (cadr base) y) (caddr base)))
 
-(defun csast:track (object / e d)
+(defun csast:track (object / e d appname)
   ;; Track first so the error handler can remove even an untagged object.
   (setq csast-created (cons object csast-created))
   (vla-put-Color object 256)
   (vla-put-Linetype object "ByLayer")
   (vla-put-Lineweight object -1)
-  (setq e (vlax-vla-object->ename object) d (entget e))
-  (if (not (entmod (append d '((-3 ("CSA_STAIR_STANDARDS_TEST" (1000 . "v1")))))))
+  (setq e (vlax-vla-object->ename object) d (entget e)
+        appname (if (and (boundp 'csast-app) csast-app) csast-app "CSA_STAIR_STANDARDS_TEST"))
+  (if (not (entmod (append d (list (list -3 (list appname (cons 1000 "v1")))))))
     (progn (princ "\nCannot mark the test entity.") (exit)))
   object)
 
@@ -132,7 +133,7 @@
   (vla-Update o)
   o)
 
-(defun c:CSA_STAIR_TEST (/ *error* doc space issues style base scale levelscale height
+(defun c:CSA_STAIR_TEST (/ *error* doc space issues style base height
                          ds name ld csast-created undo-started o item)
   (defun *error* (msg)
     (foreach item csast-created (vl-catch-all-apply 'vla-Delete (list item)))
@@ -155,12 +156,6 @@
   (if (and (not issues) (setq style (csast:pickstyle))
            (setq base (getpoint "\nPick test-panel insertion point: ")))
     (progn
-      (initget 6)
-      (setq scale (getreal "\nOther blocks insertion scale <1.0>: "))
-      (if (null scale) (setq scale 1.0))
-      (initget 6)
-      (setq levelscale (getreal "\nElevation block Cao do scale <0.35>: "))
-      (if (null levelscale) (setq levelscale 0.35))
       (setq base (trans base 1 0)
             doc (vla-get-ActiveDocument (vlax-get-acad-object))
             space (vla-get-ModelSpace doc)
@@ -184,21 +179,20 @@
         (vlax-3d-point (csast:p base 1500 -500)))))
       (vla-put-Layer o "04-GB-Dim")
       (vla-put-StyleName o style)
-      (csast:insert space "Cao do" (csast:p base 0 200) "11-GB-Cao Do" levelscale
+      (csast:insert space "Cao do" (csast:p base 0 200) "11-GB-Cao Do" 0.25
         '(("%%P0.000" . "+3.600")))
-      (csast:insert space "Daucat" (csast:p base 4000 0) "12-GB-Ky Hieu" scale
+      (csast:insert space "Daucat" (csast:p base 4000 0) "12-GB-Ky Hieu" 0.0075
         '(("A" . "1-1")))
-      (csast:insert space "So hieu thep" (csast:p base 0 -1700) "20-GB-GC" scale
+      (csast:insert space "So hieu thep" (csast:p base 0 -1700) "20-GB-GC" 0.35
         '(("A" . "1")))
-      (csast:insert space "CSA_Sohieu-KCthep" (csast:p base 3000 -1700) "20-GB-GC" scale
+      (csast:insert space "CSA_Sohieu-KCthep" (csast:p base 3000 -1700) "20-GB-GC" 1.0
         '(("SH" . "2") ("DK-KC" . "12a150")))
       (csast:text space "CSA FONT SAMPLE: 12a150 / ST-01 / +3.600"
         (csast:p base 0 -2500) height "10-GB-Text" "02-GB-VNI-Helve")
       (vla-Regen doc 0)
       (vla-EndUndoMark doc) (setq undo-started nil)
       (princ (strcat "\nTest panel created. DimStyle: " style
-        "; Cao do scale: " (rtos levelscale 2 3)
-        "; other blocks scale: " (rtos scale 2 3)
+        "; block scales fixed: Cao do=0.25, Daucat=0.0075, mark=0.35, note=1.0"
         ". Check dimension=3000, block shape/scale, font and colors."))
       (princ "\nRun CSA_STAIR_TEST_CLEAR to remove only tagged test objects.")))
   (princ))

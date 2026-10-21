@@ -2,6 +2,14 @@
 
 This directory contains the first isolated implementation for the stair tool. It does not modify the existing CSA `.dvb` files.
 
+## Current runnable milestone: Excel section UI
+
+APPLOAD the single file [`tools/CSA_StairDrawing.lsp`](tools/CSA_StairDrawing.lsp) and run **`CSA_STAIR_DRAWING`**. Read [the workflow and acceptance instructions](tools/STAIR-DRAWING.md). It provides a native DCL dialog, file selection for a workbook already open in Excel, section preview and export to existing CSA layers. No VBA import is required for this milestone.
+
+Accepted block scales: `Cao do` **0.25**, `Daucat` **0.0075**, `So hieu thep` **0.35**, and `CSA_Sohieu-KCthep` **1.0**. The first three match the user's annotated image; the note block retains its previous sample scale. These are template-specific defaults, not a general DimStyle scaling formula.
+
+This milestone uses the existing section coordinates in `Cau Thang Tools`. Plan geometry, actual reinforcement and a packaged DVB UserForm remain outstanding. AutoCAD/Excel COM and the UI require validation on Windows; offline tests do not replace that acceptance.
+
 The MVP targets a two-flight U-shaped stair and uses AutoCAD layer `CSA-PREVIEW` for disposable geometry. The same coordinate builder is used for preview and final drawing so the preview is a faithful check of the geometry that will be committed.
 
 ## Import order in AutoCAD VBA

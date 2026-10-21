@@ -425,13 +425,16 @@
     "No automatic recreation or overwriting of existing standards."
   ],
   "presentation_defaults": {
-    "elevation_block_scale": 0.35,
-    "other_block_scale": 1.0,
+    "dimstyle": "GB 25",
+    "block_scales": {
+      "Cao do": 0.25,
+      "Daucat": 0.0075,
+      "So hieu thep": 0.35,
+      "CSA_Sohieu-KCthep": 1.0
+    },
     "evidence": {
-      "dimstyle": "GB 25",
-      "user_feedback": "Elevation block Cao do is appropriately sized at scale 0.35.",
-      "scope": "Elevation only; no automatic scaling law across other DimStyles.",
-      "other_blocks": "Provisional, not accepted as final."
+      "source": "User annotated acceptance image",
+      "scope": "Fixed accepted defaults for this CSA template and GB 25; no ratio-based scaling law."
     }
   }
 }

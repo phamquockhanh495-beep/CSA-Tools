@@ -94,13 +94,13 @@ Failed:
 End Function
 
 Public Function CSA_InsertElevation(ByVal point As Variant, ByVal value As String, _
-                                    Optional ByVal scale As Double = 0.35) As Object
+                                    Optional ByVal scale As Double = 0.25) As Object
     Set CSA_InsertElevation = CSA_InsertTaggedBlock("Cao do", "11-GB-Cao Do", _
         point, scale, Array("%%P0.000"), Array(value))
 End Function
 
 Public Function CSA_InsertSectionSymbol(ByVal point As Variant, ByVal value As String, _
-                                        Optional ByVal scale As Double = 1#) As Object
+                                        Optional ByVal scale As Double = 0.0075) As Object
     Set CSA_InsertSectionSymbol = CSA_InsertTaggedBlock("Daucat", "12-GB-Ky Hieu", _
         point, scale, Array("A"), Array(value))
 End Function
@@ -112,7 +112,7 @@ Public Function CSA_InsertBarNote(ByVal point As Variant, ByVal mark As String, 
 End Function
 
 Public Function CSA_InsertBarMark(ByVal point As Variant, ByVal mark As String, _
-                                  Optional ByVal scale As Double = 1#) As Object
+                                  Optional ByVal scale As Double = 0.35) As Object
     Set CSA_InsertBarMark = CSA_InsertTaggedBlock("So hieu thep", "20-GB-GC", _
         point, scale, Array("A"), Array(mark))
 End Function
