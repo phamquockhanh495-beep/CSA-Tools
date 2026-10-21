@@ -2,12 +2,12 @@ Attribute VB_Name = "CSA_StairCase_Compat"
 Option Explicit
 
 ' Single-module compatibility build for AutoCAD VBA.
-' It intentionally avoids custom UDT declarations because some AutoCAD
-' VBA hosts report "User-defined type not defined" when those declarations
-' are imported into an existing CSA project.
+' This standalone module avoids the declaration-order and reference issues
+' in the earlier multi-module prototype; AutoCAD VBA itself supports UDTs.
 
 Private Const LAYER_PREVIEW As String = "CSA-PREVIEW"
-Private Const LAYER_CONCRETE As String = "CSA-CONCRETE"
+Private Const LAYER_CONCRETE As String = "21-GB-BD"
+Private Const PREVIEW_APP As String = "CSA_STAIR_PREVIEW"
 
 Public Sub CSA_PreviewCurrentWorkbook()
     Dim filePath As String, message As String
@@ -129,22 +129,48 @@ Private Sub EnsureLayer(ByVal layerName As String, ByVal colorIndex As Integer)
     On Error Resume Next
     Set layer = ThisDrawing.Layers.Item(layerName)
     On Error GoTo 0
-    If layer Is Nothing Then Set layer = ThisDrawing.Layers.Add(layerName)
-    layer.color = colorIndex
+    If layer Is Nothing Then
+        If layerName <> LAYER_PREVIEW Then
+            Err.Raise vbObjectError + 410, "CSA Stair", "Missing CSA layer: " & layerName
+        End If
+        Set layer = ThisDrawing.Layers.Add(layerName)
+        layer.color = colorIndex
+        layer.Plottable = False
+    End If
+    If layer.Lock Or layer.Freeze Or Not layer.LayerOn Then
+        Err.Raise vbObjectError + 411, "CSA Stair", "Layer off, frozen or locked: " & layerName
+    End If
 End Sub
+
+Private Sub MarkPreview(ByVal ent As Object)
+    Dim app As Object, codes(0 To 1) As Integer, values(0 To 1) As Variant
+    If ent.Layer <> LAYER_PREVIEW Then Exit Sub
+    On Error Resume Next
+    Set app = ThisDrawing.RegisteredApplications.Item(PREVIEW_APP)
+    On Error GoTo 0
+    If app Is Nothing Then Set app = ThisDrawing.RegisteredApplications.Add(PREVIEW_APP)
+    codes(0) = 1001: values(0) = PREVIEW_APP
+    codes(1) = 1000: values(1) = "v1"
+    ent.SetXData codes, values
+End Sub
+
+Private Function IsOwnedPreview(ByVal ent As Object) As Boolean
+    Dim codes As Variant, values As Variant
+    If ent.Layer <> LAYER_PREVIEW Then Exit Function
+    ent.GetXData PREVIEW_APP, codes, values
+    If IsArray(codes) Then IsOwnedPreview = True
+End Function
 
 Private Sub ClearLayer(ByVal layerName As String)
     Dim doomed As Collection, ent As Object, item As Variant
     Set doomed = New Collection
     For Each ent In ThisDrawing.ModelSpace
-        On Error Resume Next
-        If UCase$(ent.Layer) = UCase$(layerName) Then doomed.Add ent
-        On Error GoTo 0
+        If ent.Layer = layerName Then
+            If IsOwnedPreview(ent) Then doomed.Add ent
+        End If
     Next ent
     For Each item In doomed
-        On Error Resume Next
         item.Delete
-        On Error GoTo 0
     Next item
 End Sub
 
@@ -158,6 +184,10 @@ Private Sub DrawPolyline(ByRef xs() As Double, ByRef ys() As Double, ByVal count
     Set pl = ThisDrawing.ModelSpace.AddLightWeightPolyline(coords)
     pl.Closed = True
     pl.Layer = layerName
+    pl.color = 256
+    pl.Linetype = "ByLayer"
+    pl.Lineweight = -1
+    MarkPreview pl
 End Sub
 
 Private Sub DrawSection(ByVal x0 As Double, ByVal y0 As Double, ByVal n1 As Long, ByVal n2 As Long, ByVal rise As Double, ByVal tread As Double, ByVal landing As Double, ByVal layerName As String)
@@ -200,6 +230,10 @@ Private Sub DrawLine(ByVal x1 As Double, ByVal y1 As Double, ByVal x2 As Double,
     b(0) = x2: b(1) = y2: b(2) = 0#
     Set ln = ThisDrawing.ModelSpace.AddLine(a, b)
     ln.Layer = layerName
+    ln.color = 256
+    ln.Linetype = "ByLayer"
+    ln.Lineweight = -1
+    MarkPreview ln
 End Sub
 
 Private Function ReadNumber(ByVal prompt As String, ByVal fallback As Double) As Double

@@ -31,7 +31,7 @@ Public Function CSA_MakeFlight(ByRef v As CSAStairInput, ByVal flightNo As Long)
     CSA_MakeFlight = f
 End Function
 
-Public Function CSA_LocalPoint(ByVal f As CSAFlight, ByVal x As Double, ByVal y As Double, ByVal z As Double) As CSAPoint
+Public Function CSA_LocalPoint(ByRef f As CSAFlight, ByVal x As Double, ByVal y As Double, ByVal z As Double) As CSAPoint
     Dim p As CSAPoint
     p.X = f.StartX + x * Cos(f.Angle) - y * Sin(f.Angle)
     p.Y = f.StartY + x * Sin(f.Angle) + y * Cos(f.Angle)
@@ -47,6 +47,10 @@ Public Sub CSA_AddPreviewLine(ByRef p1 As CSAPoint, ByRef p2 As CSAPoint)
     Set ln = ThisDrawing.ModelSpace.AddLine(a, b)
     If Len(CSA_RenderLayer) = 0 Then CSA_RenderLayer = CSA_LAYER_PREVIEW
     ln.Layer = CSA_RenderLayer
+    ln.color = 256
+    ln.Linetype = "ByLayer"
+    ln.Lineweight = -1
+    CSA_MarkPreview ln
 End Sub
 
 Public Sub CSA_AddPreviewPolyline(ByRef pts() As CSAPoint, ByVal closed As Boolean)
@@ -61,6 +65,10 @@ Public Sub CSA_AddPreviewPolyline(ByRef pts() As CSAPoint, ByVal closed As Boole
     pl.Closed = closed
     If Len(CSA_RenderLayer) = 0 Then CSA_RenderLayer = CSA_LAYER_PREVIEW
     pl.Layer = CSA_RenderLayer
+    pl.color = 256
+    pl.Linetype = "ByLayer"
+    pl.Lineweight = -1
+    CSA_MarkPreview pl
 End Sub
 
 Public Sub CSA_BuildSectionPreview(ByRef v As CSAStairInput)

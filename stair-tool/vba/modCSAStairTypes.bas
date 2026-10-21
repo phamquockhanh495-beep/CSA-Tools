@@ -2,18 +2,18 @@ Attribute VB_Name = "modCSAStairTypes"
 Option Explicit
 
 Public Const CSA_LAYER_PREVIEW As String = "CSA-PREVIEW"
-Public Const CSA_LAYER_CONCRETE As String = "CSA-CONCRETE"
-Public Const CSA_LAYER_REBAR As String = "CSA-REBAR"
-Public Const CSA_LAYER_DIM As String = "CSA-DIM"
-Public Const CSA_LAYER_TEXT As String = "CSA-TEXT"
+Public Const CSA_LAYER_CONCRETE As String = "21-GB-BD"
+Public Const CSA_LAYER_PLAN As String = "06-GB-Slab-bor"
+Public Const CSA_LAYER_REBAR As String = "18-GB-Reinf"
+Public Const CSA_LAYER_DIM As String = "04-GB-Dim"
+Public Const CSA_LAYER_TEXT As String = "10-GB-Text"
+Public Const CSA_LAYER_LEVEL As String = "11-GB-Cao Do"
+Public Const CSA_LAYER_SYMBOL As String = "12-GB-Ky Hieu"
+Public Const CSA_PREVIEW_APP As String = "CSA_STAIR_PREVIEW"
 
 Public Const CSA_VIEW_SECTION As String = "SECTION"
 Public Const CSA_VIEW_PLAN As String = "PLAN"
 Public CSA_RenderLayer As String
-
-Public Sub CSA_InitRenderState()
-    CSA_RenderLayer = CSA_LAYER_PREVIEW
-End Sub
 
 Public Type CSAStairInput
     StairName As String
@@ -49,6 +49,10 @@ Public Type CSAPoint
     Y As Double
     Z As Double
 End Type
+
+Public Sub CSA_InitRenderState()
+    CSA_RenderLayer = CSA_LAYER_PREVIEW
+End Sub
 
 Public Function CSA_DefaultInput() As CSAStairInput
     Dim v As CSAStairInput

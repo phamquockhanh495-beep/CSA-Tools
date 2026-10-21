@@ -92,4 +92,8 @@ Public Sub CSA_DrawLegacyPolyline(ByRef xs() As Double, ByRef ys() As Double, By
     Set pl = ThisDrawing.ModelSpace.AddLightWeightPolyline(coords)
     pl.Closed = True
     pl.Layer = targetLayer
+    pl.color = 256
+    pl.Linetype = "ByLayer"
+    pl.Lineweight = -1
+    CSA_MarkPreview pl
 End Sub

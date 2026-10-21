@@ -23,10 +23,10 @@ Public Sub CSA_DrawSectionFinal(ByRef v As CSAStairInput)
         MsgBox message, vbExclamation, "CSA Stair Drawing"
         Exit Sub
     End If
-    CSA_ClearPreview
     CSA_InitRenderState
     CSA_RenderLayer = CSA_LAYER_CONCRETE
-    CSA_EnsureLayers
+    CSA_EnsureLayer CSA_LAYER_CONCRETE, 90
+    CSA_ClearPreview
     CSA_BuildSectionPreview v
     ThisDrawing.Regen acActiveViewport
 End Sub
@@ -37,10 +37,10 @@ Public Sub CSA_DrawPlanFinal(ByRef v As CSAStairInput)
         MsgBox message, vbExclamation, "CSA Stair Drawing"
         Exit Sub
     End If
-    CSA_ClearPreview
     CSA_InitRenderState
-    CSA_RenderLayer = CSA_LAYER_CONCRETE
-    CSA_EnsureLayers
+    CSA_RenderLayer = CSA_LAYER_PLAN
+    CSA_EnsureLayer CSA_LAYER_PLAN, 150
+    CSA_ClearPreview
     CSA_BuildPlanPreview v
     ThisDrawing.Regen acActiveViewport
 End Sub

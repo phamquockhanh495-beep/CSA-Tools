@@ -20,9 +20,8 @@ Private Sub UserForm_Initialize()
     Me.chkDimensions.Value = v.DrawDimensions
     Me.chkRebar.Value = v.PreviewRebar
     Me.lblStatus.Caption = "Ready - preview is drawn on CSA-PREVIEW"
-    On Error Resume Next
-    ApplyCSAThemeEx Me, "Stair Drawing", "CSA TOOLS  |  STAIR DRAWING"
-    On Error GoTo 0
+    ' Uncomment only after importing the existing CSA theme and button class:
+    ' ApplyCSAThemeEx Me, "Stair Drawing", "CSA TOOLS  |  STAIR DRAWING"
 End Sub
 
 Private Sub cmdPreview_Click()
@@ -35,14 +34,14 @@ End Sub
 Private Sub cmdDrawSection_Click()
     If ReadForm(gCSAStair) Then
         CSA_DrawSectionFinal gCSAStair
-        Me.lblStatus.Caption = "Section drawn on CSA-CONCRETE"
+        Me.lblStatus.Caption = "Section drawn on 21-GB-BD"
     End If
 End Sub
 
 Private Sub cmdDrawPlan_Click()
     If ReadForm(gCSAStair) Then
         CSA_DrawPlanFinal gCSAStair
-        Me.lblStatus.Caption = "Plan drawn on CSA-CONCRETE"
+        Me.lblStatus.Caption = "Plan drawn on 06-GB-Slab-bor"
     End If
 End Sub
 

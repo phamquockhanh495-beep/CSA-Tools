@@ -15,7 +15,7 @@ The MVP targets a two-flight U-shaped stair and uses AutoCAD layer `CSA-PREVIEW`
 7. Import `vba/modCSAStairMain.bas`.
 8. Add the controls described in `ui/frmCSAStair.layout.md` and paste `ui/frmCSAStair.code.bas` into the form code module.
 
-If the target CSA project already contains `modCSATheme`, call `ApplyCSAThemeEx Me, "Stair Drawing", "CSA TOOLS  |  STAIR DRAWING"` at the end of `UserForm_Initialize`. The form code also works without the theme module; the fallback only sets standard MSForms properties.
+If the target CSA project already contains `modCSATheme` and its button class, uncomment `ApplyCSAThemeEx Me, "Stair Drawing", "CSA TOOLS  |  STAIR DRAWING"` at the end of `UserForm_Initialize`. Keep that call commented for projects without the theme dependency.
 
 For the workbook currently in the repository, run `CSA_PreviewCurrentWorkbook`. It reads the calculated `Cau Thang Tools` coordinates from columns `BY/BZ/CA` and draws the existing result on `CSA-PREVIEW` without changing the workbook formulas.
 
@@ -33,3 +33,13 @@ The modules are source artifacts. Building a binary `.dvb` with a UserForm still
 ## One-file compatibility route
 
 `CSA_StairCase_Compat.bas` is a single standard module with no UDT declarations. Import this one file into a blank DVB or an existing CSA project when the host reports `User-defined type not defined`. It provides `CSA_PreviewCurrentWorkbook`, `CSA_CleanPreviewCommand`, and `CSA_STAIRDRAW` without requiring the other MVP modules.
+
+## CSA native standards acceptance
+
+For the next test, load only [`tools/CSA_StairStandardsTest.lsp`](tools/CSA_StairStandardsTest.lsp) with APPLOAD. Follow [the test instructions](tools/STAIR-STANDARDS-TEST.md). This is a standards sample panel, not a completed stair drawing. It has a DimStyle picker, four tagged CSA blocks, a sample dimension and targeted cleanup. The tested resource names come from [`standards/csa-profile.json`](standards/csa-profile.json), tied to the user's native CSV export commit.
+
+VBA layer constants now target native CSA layers. Existing layer properties are preserved, only a missing `CSA-PREVIEW` can be created, and new preview geometry is tagged for cleanup. Previously untagged preview geometry is intentionally retained. The standalone compatibility module remains independent of the multi-module sources.
+
+`vba/modCSAStairAdapter.bas` provides `CSA_MissingStandards`, tag-based block insertion helpers and aligned dimensions using an existing style. It has no UDT or Excel dependency and can be imported independently for later integration. The Lisp acceptance tool requires no VBA import.
+
+Offline validation: `python3 -m unittest discover -s stair-tool/tests -v`. Fetch the recorded source commit from `origin/main` first if not present locally. These checks compare names/tags/attributes with the native CSV export and inspect source structure; they do not compile VBA or execute AutoCAD.
