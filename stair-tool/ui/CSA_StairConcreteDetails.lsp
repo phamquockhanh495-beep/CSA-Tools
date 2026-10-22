@@ -96,6 +96,57 @@
     (list (- (car mid) (* dx gap)) (- (cadr mid) (* dy gap))) specs))
   (reverse specs))
 
+;;; Fixed extension lines: DIMFXLON=1 (290), DIMFXL (49), per-entity overrides.
+;;; DIMFXL is scaled by DIMSCALE, so store 150 / effective scale for 150 model mm.
+(defun csad:fixed-dstyle (app model-length dimscale / tail before body after depth found item filtered)
+  (setq tail (cdr app))
+  (while (and tail (not found))
+    (if (and (equal (car tail) (cons 1000 "DSTYLE")) (equal (cadr tail) (cons 1002 "{")))
+      (progn
+        (setq found T tail (cddr tail) depth 1)
+        (while (and tail (> depth 0))
+          (setq item (car tail) tail (cdr tail))
+          (cond ((equal item (cons 1002 "{")) (setq depth (1+ depth)))
+                ((equal item (cons 1002 "}")) (setq depth (1- depth))))
+          (if (> depth 0) (setq body (append body (list item)))))
+        (setq after tail))
+      (setq before (append before (list (car tail))) tail (cdr tail))))
+  ;; Replace only these two variable/value pairs; preserve every other override.
+  (while body
+    (if (and (= (caar body) 1070) (cdr body))
+      (progn
+        ;; Consume each complete variable/value pair. An integer VALUE of 49
+        ;; (e.g. a color) must not be mistaken for the DIMFXL variable code.
+        (if (not (member (cdar body) '(49 290)))
+          (setq filtered (append filtered (list (car body) (cadr body)))))
+        (setq body (cddr body)))
+      (setq filtered (append filtered (list (car body))) body (cdr body))))
+  (append (list "ACAD") before
+    (list (cons 1000 "DSTYLE") (cons 1002 "{")) filtered
+    (list (cons 1070 49) (cons 1040 (/ model-length dimscale))
+          (cons 1070 290) (cons 1070 1) (cons 1002 "}")) after))
+
+(defun csad:fixed-extension (object model-length / entity data dimscale result group apps app found)
+  (setq csad-stage "Dimension: fix extension length to 150 model mm"
+        entity (vlax-vla-object->ename object) data (entget entity '("*"))
+        dimscale (vla-get-ScaleFactor object))
+  (if (<= dimscale 0.0) (setq dimscale (/ 1.0 (getvar "CANNOSCALEVALUE"))))
+  (foreach group data
+    (if (= (car group) -3)
+      (progn
+        (setq apps nil)
+        (foreach app (cdr group)
+          (if (= (car app) "ACAD")
+            (setq app (csad:fixed-dstyle app model-length dimscale) found T))
+          (setq apps (append apps (list app))))
+        (setq group (cons -3 apps))))
+    (setq result (append result (list group))))
+  (if (not found)
+    (setq result (append result (list (list -3 (csad:fixed-dstyle (list "ACAD") model-length dimscale))))))
+  (if (not (entmod result)) (progn (princ "\nCannot set fixed extension length on dimension.") (exit)))
+  (entupd entity)
+  object)
+
 (defun csad:draw-spec (space base spec layer style / a b location kind obj)
   (setq a (nth 2 spec) b (nth 3 spec) location (nth 4 spec) kind (nth 1 spec)
         a (csast:p base (car a) (cadr a)) b (csast:p base (car b) (cadr b))
@@ -106,6 +157,7 @@
     (setq obj (csast:track (vla-AddDimRotated space (vlax-3d-point a)
       (vlax-3d-point b) (vlax-3d-point location) (if (= kind "H") 0.0 (/ pi 2.0))))))
   (vla-put-Layer obj layer) (vla-put-StyleName obj style)
+  (csad:fixed-extension obj 150.0)
   (vla-Update obj)
   obj)
 

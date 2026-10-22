@@ -70,6 +70,56 @@ class ConcreteDetailsTests(unittest.TestCase):
                                    self.pure.call('csad:dim-measure', b))
             self.assertNotEqual(a[4], b[4])
 
+    def test_fixed_extensions_are_150_model_mm_and_keep_other_dstyle_data(self):
+        for scale in (1, 25, 50):
+            app = ['ACAD', (1000,'before'), (1000,'DSTYLE'), (1002,'{'),
+                   (1070,140), (1040,2.5), (1070,49), (1040,999.0),
+                   (1070,290), (1070,0), (1002,'}'), (1000,'after')]
+            result = self.pure.call('csad:fixed-dstyle', app, 150, scale)
+            i = result.index((1070,49))
+            self.assertEqual(result[i+1][1]*scale, 150)
+            i = result.index((1070,290))
+            self.assertEqual(result[i+1], (1070,1))
+            self.assertEqual(result.count((1070,49)), 1)
+            self.assertEqual(result.count((1070,290)), 1)
+            self.assertIn((1070,140), result)
+            self.assertIn((1040,2.5), result)
+            self.assertEqual(result[1], (1000,'before'))
+            self.assertEqual(result[-1], (1000,'after'))
+            self.assertEqual(self.pure.call('csad:fixed-dstyle', result, 150, scale), result)
+        fresh = self.pure.call('csad:fixed-dstyle', ['ACAD'], 150, 25)
+        self.assertIn((1040,6), fresh)
+
+    def test_fixed_extension_preserves_preview_tags_and_all_apps(self):
+        # Execute the native-data merge with API boundaries stubbed.
+        pure = PureLisp(lisp_forms((TOOL/'tools/CSA_StairDrawing.lsp').read_text()))
+        before = [(0,'DIMENSION'), [-3, ['CSA_STAIR_PREVIEW',(1000,'v1')],
+                   ['ACAD',(1000,'other-data')]], [-3,['OTHER',(1000,'keep')]]]
+        output = {}
+        pure.host.update({
+            'vlax-vla-object->ename': lambda obj: 'dimension',
+            'entget': lambda *args: before,
+            'vla-get-ScaleFactor': lambda obj: 25,
+            'entmod': lambda data: output.update(data=data) or data,
+            'entupd': lambda entity: None,
+        })
+        pure.call('csad:fixed-extension', 'object', 150)
+        after = output['data']
+        self.assertEqual(after[0], before[0])
+        self.assertEqual(after[1][1], before[1][1])
+        self.assertEqual(after[2], before[2])
+        self.assertIn((1000,'other-data'), after[1][2])
+        self.assertIn((1040,6), after[1][2])
+
+    def test_fixed_extensions_do_not_confuse_integer_values_with_variable_codes(self):
+        app = ['ACAD',(1000,'DSTYLE'),(1002,'{'),
+               (1070,176),(1070,49), # DIMCLRD color value is 49
+               (1070,177),(1070,290),
+               (1070,49),(1040,10),(1070,290),(1070,0),(1002,'}')]
+        result = self.pure.call('csad:fixed-dstyle', app, 150, 25)
+        self.assertEqual(result[3:7], app[3:7])
+        self.assertEqual(result[7:], [(1070,49),(1040,6),(1070,290),(1070,1),(1002,'}')])
+
     def test_block_scale_recovery_with_inch_compensation(self):
         def scale_entity(obj, point, factor):
             for axis in ('x', 'y', 'z'):

@@ -57,7 +57,7 @@ class RebarTests(unittest.TestCase):
                 self.assertAlmostEqual(abs(path[1][0]-path[0][0]), 360)
                 self.assertAlmostEqual(abs(path[-1][0]-path[-2][0]), 360)
                 self.assertGreaterEqual(self.pure.call('csar:path-clearance', path,
-                    self.pure.call('csad:cleanpoints', self.raw)), cover+6-0.01)
+                    self.pure.call('csad:cleanpoints', self.raw)), cover-0.01)
 
     def test_excessive_anchorage_and_cover_are_not_silently_shortened(self):
         for slot, value in [(10, 1000), (0, 80)]:
@@ -78,7 +78,7 @@ class RebarTests(unittest.TestCase):
                     slope = (path[3][1]-path[2][1])/(path[3][0]-path[2][0])
                     self.assertAlmostEqual(slope, (self.raw[3][1]-self.raw[2][1])/3000)
                     self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon),
-                                            cover+6-0.01)
+                                            cover-0.01)
 
     def test_landing_diameters_are_validated_independently(self):
         for slot in (4, 5):
@@ -171,6 +171,8 @@ class RebarTests(unittest.TestCase):
                 'vla-put-Layer': lambda *args: None,
                 'vla-put-StyleName': lambda *args: None,
                 'vla-put-ScaleFactor': lambda obj, value: props.update(scale=value),
+                'vla-put-Type': lambda obj, value: props.update(type=value),
+                'vla-put-Coordinates': lambda obj, value: props.update(final_coords=value),
                 'vla-put-ArrowheadType': lambda obj, value: props.update(arrow=value),
                 'vla-put-ArrowheadSize': lambda obj, value: props.update(size=value),
                 'vla-Update': lambda *args: None,
@@ -179,13 +181,45 @@ class RebarTests(unittest.TestCase):
             pure.defs['leader-test'] = ['defun', 'leader-test', [],
                 ['setq', 'vlax-vbDouble', 5],
                 ['csar:leader', None, ['quote', [10,20,30]],
-                 ['quote', [[1,2],[3,4],[5,4]]], '20-GB-GC', dotted, 62.5, 12, 'GB 25', 'CSA note BlockReference']]
+                 ['quote', [[1,2],[3,4],[5,4]]], '20-GB-GC', dotted, (60 if dotted else 100), 'GB 25', 'CSA note BlockReference']]
             pure.call('leader-test')
             self.assertEqual(props['annotation'], 'CSA note BlockReference')
             self.assertEqual(props['arrow'], expected)
             self.assertEqual(props['scale'], 1)
-            self.assertEqual(props['kind'], 1)
+            self.assertEqual(props['kind'], 0) # acLineWithArrow, NOT acSplineWithArrow
+            self.assertEqual(props['type'], 0)
+            self.assertEqual(props['size'], 60 if dotted else 100)
+            self.assertEqual(props['final_coords'], props['coords'])
             self.assertEqual(props['coords'], [11,22,30,13,24,30,15,24,30])
+
+    def test_axes_use_cover_and_dot_half_diameter_from_main_line(self):
+        for cover in (15, 25):
+            for top in (None, True):
+                for main_d in (8, 14):
+                    main = self.pure.call('csar:mainpath', self.raw, cover, main_d, 30, top)
+                    axis = self.pure.call('csar:distribution-line', self.raw, cover, main_d, 12, top)
+                    center = self.pure.call('csad:mid', *axis)
+                    self.assertAlmostEqual(self.pure.call('csar:point-segment-distance', center, main[2], main[3]), 6)
+                    concrete = [self.raw[2], self.raw[3]] if top else [self.raw[14], self.raw[13]]
+                    mid = self.pure.call('csad:mid', main[2], main[3])
+                    self.assertAlmostEqual(self.pure.call('csar:point-segment-distance', mid, *concrete), cover)
+                    for upper in (None, True):
+                        landing = self.pure.call('csar:landingline', self.raw, cover, main_d, upper, top)
+                        dots = self.pure.call('csar:landing-distribution-line', self.raw, cover, main_d, 12, upper, top)
+                        self.assertAlmostEqual(abs(landing[0][1]-dots[0][1]), 6)
+
+    def test_leader_route_is_straight_diagonal_then_underlines_text(self):
+        low, high, textlow, texthigh = [0,0], [300,100], [100,35], [300,90]
+        for target in ([-300,-400], [700,400]):
+            route = self.pure.call('csar:note-route', target, low, high, textlow, texthigh, 62.5)
+            self.assertEqual(len(route), 3)
+            self.assertEqual(route[0], target)
+            self.assertNotEqual(route[0][0], route[1][0])
+            self.assertNotEqual(route[0][1], route[1][1])
+            self.assertEqual(route[1][1], route[2][1])
+            self.assertLess(route[1][1], textlow[1])
+            self.assertLessEqual(min(route[1][0],route[2][0]), textlow[0])
+            self.assertGreaterEqual(max(route[1][0],route[2][0]), texthigh[0])
 
     def test_note_passes_its_created_block_to_leader(self):
         calls = [f for f in walk(self.pure.defs['csar:note'])

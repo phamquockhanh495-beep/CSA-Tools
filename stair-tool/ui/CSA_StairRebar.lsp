@@ -32,7 +32,7 @@
         (list (- (car b) (* dy offsetvalue)) (+ (cadr b) (* dx offsetvalue)))))
 
 (defun csar:mainpath (raw cover diameter anchor-d top / radius leg line leftx rightx lowy highy a b)
-  (setq radius (+ cover (/ diameter 2.0)) leg (* diameter anchor-d))
+  (setq radius cover leg (* diameter anchor-d))
   (if top
     (setq line (csar:offset (nth 2 raw) (nth 3 raw) (- 0.0 radius))
           leftx (+ (car (nth 1 raw)) radius)
@@ -48,7 +48,7 @@
         (list rightx highy) (list (+ rightx leg) highy)))
 
 (defun csar:landingline (raw cover diameter upper top / radius leftx rightx y)
-  (setq radius (+ cover (/ diameter 2.0)))
+  (setq radius cover)
   (if upper
     (setq leftx (+ (car (nth 4 raw)) radius) rightx (- (car (nth 5 raw)) radius)
           y (if top (- (cadr (nth 4 raw)) radius) (+ (cadr (nth 8 raw)) radius)))
@@ -93,11 +93,11 @@
   (reverse result))
 
 (defun csar:distribution-line (raw cover main-d diameter top / line radius dx dy span)
-  ;; Transverse bars lie inside the longitudinal bars, not on the same axis.
+  ;; User convention: longitudinal axis at cover, dot axis another d_transverse/2 inside.
   (setq radius (+ cover (/ diameter 2.0)))
   (if top
-    (setq line (csar:offset (nth 2 raw) (nth 3 raw) (- 0.0 (+ radius main-d))))
-    (setq line (csar:offset (nth 14 raw) (nth 13 raw) (+ radius main-d))))
+    (setq line (csar:offset (nth 2 raw) (nth 3 raw) (- 0.0 radius)))
+    (setq line (csar:offset (nth 14 raw) (nth 13 raw) radius)))
   (setq span (distance (car line) (cadr line))
         dx (/ (- (caadr line) (caar line)) span)
         dy (/ (- (cadadr line) (cadar line)) span))
@@ -105,7 +105,7 @@
         (list (- (caadr line) (* radius dx)) (- (cadadr line) (* radius dy)))))
 
 (defun csar:landing-distribution-line (raw cover main-d diameter upper top)
-  (csar:landingline raw (+ cover main-d) diameter upper top))
+  (csar:landingline raw (+ cover (/ diameter 2.0)) diameter upper top))
 
 (defun csar:point-clearance (point polygon / edges result)
   (setq edges (append polygon (list (car polygon))) result 1.0e20)
@@ -209,7 +209,7 @@
           (progn
             (setq bottom (csar:bar (nth 6 data)) top (csar:bar (nth 7 data)))
             (foreach value (if (= layers 2) (list nil T) (list nil))
-              (setq radius (+ cover (/ (car (if value top bottom)) 2.0))
+              (setq radius cover
                     path (csar:mainpath raw cover (car (if value top bottom)) (nth 10 data) value))
               (if (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01))
                 (setq issue "Main bar legs do not fit concrete/cover; no anchor was shortened automatically.")))
@@ -222,7 +222,7 @@
             (foreach side (list nil T)
               (if (= 1 (csar:flag (nth (if side 3 4) options)))
                 (progn
-                  (setq bar (csar:bar (nth (if side 5 4) data)) radius (+ cover (/ (car bar) 2.0)))
+                  (setq bar (csar:bar (nth (if side 5 4) data)) radius cover)
                   (foreach value (if (= layers 2) (list nil T) (list nil))
                     (setq path (csar:landingpath raw cover (car bar) (nth 10 data) side value))
                     (if (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01))
@@ -270,30 +270,41 @@
   (vla-put-ConstantWidth object (/ diameter 2.0))
   object)
 
-(defun csar:leader (space base points layer dotted height diameter style annotation / coords point array object)
+(defun csar:leader (space base points layer dotted size style annotation / coords point array object)
   (foreach point points
     (setq coords (append coords (csast:p base (car point) (cadr point)))))
   (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
   (vlax-safearray-fill array coords)
-  ;; Annotation is a required IDispatch parameter. AutoLISP nil can be marshalled
-  ;; as a missing argument, not a null dispatch, causing "Parameter not optional".
-  ;; Pass the existing CSA BlockReference, an annotation type AddLeader supports.
-  (setq csad-stage "Leader: AddLeader with CSA block annotation")
-  (setq object (csast:track (vla-AddLeader space array annotation 1))) ; acLineWithArrow
+  ;; Annotation must be an existing CSA BlockReference, not a missing nil argument.
+  ;; AcLeaderType: 0 = acLineWithArrow, 1 = acSplineWithArrow (curved).
+  (setq csad-stage "Leader: AddLeader straight segments with CSA annotation")
+  (setq object (csast:track (vla-AddLeader space array annotation 0)))
   (setq csad-stage "Leader: set layer and DimStyle")
   (vla-put-Layer object layer) (vla-put-StyleName object style)
-  (setq csad-stage "Leader: set ScaleFactor")
+  (setq csad-stage "Leader: set straight Type / ScaleFactor")
+  (vla-put-Type object 0)
   (vla-put-ScaleFactor object 1.0)
   ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
-  (setq csad-stage "Leader: set ArrowheadType")
+  (setq csad-stage "Leader: set ArrowheadType and model-space size")
   (vla-put-ArrowheadType object (if dotted 12 4))
-  (setq csad-stage "Leader: set ArrowheadSize")
-  (vla-put-ArrowheadSize object (if dotted (max (* 2.0 diameter) (* 0.6 height)) (* 0.8 height)))
-  (setq csad-stage "Leader: Update")
+  (vla-put-ArrowheadSize object size)
+  ;; Associating an annotation may reposition vertices/add a landing. Reapply
+  ;; the exact three vertices after the style and annotation have been assigned.
+  (setq csad-stage "Leader: restore diagonal and horizontal coordinates")
+  (vla-put-Coordinates object array)
   (vla-Update object)
   object)
 
-(defun csar:note (space base target point bar mark dotted preview height / layer note low high attach elbow)
+(defun csar:note-route (target low high textlow texthigh height / y near far margin)
+  ;; Horizontal leg under the diameter/spacing attribute, not through its center.
+  ;; It runs from the side closest to the target to the far side of the text.
+  (setq margin (max 10.0 (* 0.2 height)) y (- (cadr textlow) margin))
+  (if (< (car target) (/ (+ (car low) (car high)) 2.0))
+    (setq near (- (car low) (* 2.0 height)) far (car texthigh))
+    (setq near (+ (car high) (* 2.0 height)) far (car textlow)))
+  (list target (list near y) (list far y)))
+
+(defun csar:note (space base target point bar mark dotted preview height / layer note low high attrs att textlow texthigh route)
   (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block"))
   (setq layer (if preview "CSA-PREVIEW" "20-GB-GC")
         note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
@@ -302,9 +313,17 @@
   (csad:center note (csast:p base (car point) (cadr point)))
   (vla-GetBoundingBox note 'low 'high)
   (setq low (vlax-safearray->list low) high (vlax-safearray->list high)
-        attach (list (- (if (< (car target) (car point)) (car low) (car high)) (car base)) (cadr point))
-        elbow (list (+ (car attach) (* (if (< (car target) (car point)) -2.0 2.0) height)) (cadr attach)))
-  (csar:leader space base (list target elbow attach) layer dotted height (car bar) (csad:get 'dimstyle) note)
+        attrs (vlax-invoke note 'GetAttributes))
+  (foreach att attrs
+    (if (= (strcase (vla-get-TagString att)) "DK-KC")
+      (progn
+        (vla-GetBoundingBox att 'textlow 'texthigh)
+        (setq textlow (vlax-safearray->list textlow) texthigh (vlax-safearray->list texthigh)))))
+  ;; Existing block/tag preflight guarantees DK-KC. All bounds are WCS here.
+  (setq route (csar:note-route (csast:p base (car target) (cadr target)) low high textlow texthigh height)
+        route (mapcar '(lambda (p) (list (- (car p) (car base)) (- (cadr p) (cadr base)))) route))
+  (csar:leader space base route layer dotted
+    (distof (csad:get (if dotted 'dotsize 'ticksize)) 2) (csad:get 'dimstyle) note)
   note)
 
 (defun csar:render (space base raw data options preview gap height / cover layers top bar path mark a b side

@@ -337,6 +337,57 @@
     (list (- (car mid) (* dx gap)) (- (cadr mid) (* dy gap))) specs))
   (reverse specs))
 
+;;; Fixed extension lines: DIMFXLON=1 (290), DIMFXL (49), per-entity overrides.
+;;; DIMFXL is scaled by DIMSCALE, so store 150 / effective scale for 150 model mm.
+(defun csad:fixed-dstyle (app model-length dimscale / tail before body after depth found item filtered)
+  (setq tail (cdr app))
+  (while (and tail (not found))
+    (if (and (equal (car tail) (cons 1000 "DSTYLE")) (equal (cadr tail) (cons 1002 "{")))
+      (progn
+        (setq found T tail (cddr tail) depth 1)
+        (while (and tail (> depth 0))
+          (setq item (car tail) tail (cdr tail))
+          (cond ((equal item (cons 1002 "{")) (setq depth (1+ depth)))
+                ((equal item (cons 1002 "}")) (setq depth (1- depth))))
+          (if (> depth 0) (setq body (append body (list item)))))
+        (setq after tail))
+      (setq before (append before (list (car tail))) tail (cdr tail))))
+  ;; Replace only these two variable/value pairs; preserve every other override.
+  (while body
+    (if (and (= (caar body) 1070) (cdr body))
+      (progn
+        ;; Consume each complete variable/value pair. An integer VALUE of 49
+        ;; (e.g. a color) must not be mistaken for the DIMFXL variable code.
+        (if (not (member (cdar body) '(49 290)))
+          (setq filtered (append filtered (list (car body) (cadr body)))))
+        (setq body (cddr body)))
+      (setq filtered (append filtered (list (car body))) body (cdr body))))
+  (append (list "ACAD") before
+    (list (cons 1000 "DSTYLE") (cons 1002 "{")) filtered
+    (list (cons 1070 49) (cons 1040 (/ model-length dimscale))
+          (cons 1070 290) (cons 1070 1) (cons 1002 "}")) after))
+
+(defun csad:fixed-extension (object model-length / entity data dimscale result group apps app found)
+  (setq csad-stage "Dimension: fix extension length to 150 model mm"
+        entity (vlax-vla-object->ename object) data (entget entity '("*"))
+        dimscale (vla-get-ScaleFactor object))
+  (if (<= dimscale 0.0) (setq dimscale (/ 1.0 (getvar "CANNOSCALEVALUE"))))
+  (foreach group data
+    (if (= (car group) -3)
+      (progn
+        (setq apps nil)
+        (foreach app (cdr group)
+          (if (= (car app) "ACAD")
+            (setq app (csad:fixed-dstyle app model-length dimscale) found T))
+          (setq apps (append apps (list app))))
+        (setq group (cons -3 apps))))
+    (setq result (append result (list group))))
+  (if (not found)
+    (setq result (append result (list (list -3 (csad:fixed-dstyle (list "ACAD") model-length dimscale))))))
+  (if (not (entmod result)) (progn (princ "\nCannot set fixed extension length on dimension.") (exit)))
+  (entupd entity)
+  object)
+
 (defun csad:draw-spec (space base spec layer style / a b location kind obj)
   (setq a (nth 2 spec) b (nth 3 spec) location (nth 4 spec) kind (nth 1 spec)
         a (csast:p base (car a) (cadr a)) b (csast:p base (car b) (cadr b))
@@ -347,6 +398,7 @@
     (setq obj (csast:track (vla-AddDimRotated space (vlax-3d-point a)
       (vlax-3d-point b) (vlax-3d-point location) (if (= kind "H") 0.0 (/ pi 2.0))))))
   (vla-put-Layer obj layer) (vla-put-StyleName obj style)
+  (csad:fixed-extension obj 150.0)
   (vla-Update obj)
   obj)
 
@@ -450,7 +502,7 @@
         (list (- (car b) (* dy offsetvalue)) (+ (cadr b) (* dx offsetvalue)))))
 
 (defun csar:mainpath (raw cover diameter anchor-d top / radius leg line leftx rightx lowy highy a b)
-  (setq radius (+ cover (/ diameter 2.0)) leg (* diameter anchor-d))
+  (setq radius cover leg (* diameter anchor-d))
   (if top
     (setq line (csar:offset (nth 2 raw) (nth 3 raw) (- 0.0 radius))
           leftx (+ (car (nth 1 raw)) radius)
@@ -466,7 +518,7 @@
         (list rightx highy) (list (+ rightx leg) highy)))
 
 (defun csar:landingline (raw cover diameter upper top / radius leftx rightx y)
-  (setq radius (+ cover (/ diameter 2.0)))
+  (setq radius cover)
   (if upper
     (setq leftx (+ (car (nth 4 raw)) radius) rightx (- (car (nth 5 raw)) radius)
           y (if top (- (cadr (nth 4 raw)) radius) (+ (cadr (nth 8 raw)) radius)))
@@ -511,11 +563,11 @@
   (reverse result))
 
 (defun csar:distribution-line (raw cover main-d diameter top / line radius dx dy span)
-  ;; Transverse bars lie inside the longitudinal bars, not on the same axis.
+  ;; User convention: longitudinal axis at cover, dot axis another d_transverse/2 inside.
   (setq radius (+ cover (/ diameter 2.0)))
   (if top
-    (setq line (csar:offset (nth 2 raw) (nth 3 raw) (- 0.0 (+ radius main-d))))
-    (setq line (csar:offset (nth 14 raw) (nth 13 raw) (+ radius main-d))))
+    (setq line (csar:offset (nth 2 raw) (nth 3 raw) (- 0.0 radius)))
+    (setq line (csar:offset (nth 14 raw) (nth 13 raw) radius)))
   (setq span (distance (car line) (cadr line))
         dx (/ (- (caadr line) (caar line)) span)
         dy (/ (- (cadadr line) (cadar line)) span))
@@ -523,7 +575,7 @@
         (list (- (caadr line) (* radius dx)) (- (cadadr line) (* radius dy)))))
 
 (defun csar:landing-distribution-line (raw cover main-d diameter upper top)
-  (csar:landingline raw (+ cover main-d) diameter upper top))
+  (csar:landingline raw (+ cover (/ diameter 2.0)) diameter upper top))
 
 (defun csar:point-clearance (point polygon / edges result)
   (setq edges (append polygon (list (car polygon))) result 1.0e20)
@@ -627,7 +679,7 @@
           (progn
             (setq bottom (csar:bar (nth 6 data)) top (csar:bar (nth 7 data)))
             (foreach value (if (= layers 2) (list nil T) (list nil))
-              (setq radius (+ cover (/ (car (if value top bottom)) 2.0))
+              (setq radius cover
                     path (csar:mainpath raw cover (car (if value top bottom)) (nth 10 data) value))
               (if (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01))
                 (setq issue "Main bar legs do not fit concrete/cover; no anchor was shortened automatically.")))
@@ -640,7 +692,7 @@
             (foreach side (list nil T)
               (if (= 1 (csar:flag (nth (if side 3 4) options)))
                 (progn
-                  (setq bar (csar:bar (nth (if side 5 4) data)) radius (+ cover (/ (car bar) 2.0)))
+                  (setq bar (csar:bar (nth (if side 5 4) data)) radius cover)
                   (foreach value (if (= layers 2) (list nil T) (list nil))
                     (setq path (csar:landingpath raw cover (car bar) (nth 10 data) side value))
                     (if (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01))
@@ -688,30 +740,41 @@
   (vla-put-ConstantWidth object (/ diameter 2.0))
   object)
 
-(defun csar:leader (space base points layer dotted height diameter style annotation / coords point array object)
+(defun csar:leader (space base points layer dotted size style annotation / coords point array object)
   (foreach point points
     (setq coords (append coords (csast:p base (car point) (cadr point)))))
   (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
   (vlax-safearray-fill array coords)
-  ;; Annotation is a required IDispatch parameter. AutoLISP nil can be marshalled
-  ;; as a missing argument, not a null dispatch, causing "Parameter not optional".
-  ;; Pass the existing CSA BlockReference, an annotation type AddLeader supports.
-  (setq csad-stage "Leader: AddLeader with CSA block annotation")
-  (setq object (csast:track (vla-AddLeader space array annotation 1))) ; acLineWithArrow
+  ;; Annotation must be an existing CSA BlockReference, not a missing nil argument.
+  ;; AcLeaderType: 0 = acLineWithArrow, 1 = acSplineWithArrow (curved).
+  (setq csad-stage "Leader: AddLeader straight segments with CSA annotation")
+  (setq object (csast:track (vla-AddLeader space array annotation 0)))
   (setq csad-stage "Leader: set layer and DimStyle")
   (vla-put-Layer object layer) (vla-put-StyleName object style)
-  (setq csad-stage "Leader: set ScaleFactor")
+  (setq csad-stage "Leader: set straight Type / ScaleFactor")
+  (vla-put-Type object 0)
   (vla-put-ScaleFactor object 1.0)
   ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
-  (setq csad-stage "Leader: set ArrowheadType")
+  (setq csad-stage "Leader: set ArrowheadType and model-space size")
   (vla-put-ArrowheadType object (if dotted 12 4))
-  (setq csad-stage "Leader: set ArrowheadSize")
-  (vla-put-ArrowheadSize object (if dotted (max (* 2.0 diameter) (* 0.6 height)) (* 0.8 height)))
-  (setq csad-stage "Leader: Update")
+  (vla-put-ArrowheadSize object size)
+  ;; Associating an annotation may reposition vertices/add a landing. Reapply
+  ;; the exact three vertices after the style and annotation have been assigned.
+  (setq csad-stage "Leader: restore diagonal and horizontal coordinates")
+  (vla-put-Coordinates object array)
   (vla-Update object)
   object)
 
-(defun csar:note (space base target point bar mark dotted preview height / layer note low high attach elbow)
+(defun csar:note-route (target low high textlow texthigh height / y near far margin)
+  ;; Horizontal leg under the diameter/spacing attribute, not through its center.
+  ;; It runs from the side closest to the target to the far side of the text.
+  (setq margin (max 10.0 (* 0.2 height)) y (- (cadr textlow) margin))
+  (if (< (car target) (/ (+ (car low) (car high)) 2.0))
+    (setq near (- (car low) (* 2.0 height)) far (car texthigh))
+    (setq near (+ (car high) (* 2.0 height)) far (car textlow)))
+  (list target (list near y) (list far y)))
+
+(defun csar:note (space base target point bar mark dotted preview height / layer note low high attrs att textlow texthigh route)
   (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block"))
   (setq layer (if preview "CSA-PREVIEW" "20-GB-GC")
         note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
@@ -720,9 +783,17 @@
   (csad:center note (csast:p base (car point) (cadr point)))
   (vla-GetBoundingBox note 'low 'high)
   (setq low (vlax-safearray->list low) high (vlax-safearray->list high)
-        attach (list (- (if (< (car target) (car point)) (car low) (car high)) (car base)) (cadr point))
-        elbow (list (+ (car attach) (* (if (< (car target) (car point)) -2.0 2.0) height)) (cadr attach)))
-  (csar:leader space base (list target elbow attach) layer dotted height (car bar) (csad:get 'dimstyle) note)
+        attrs (vlax-invoke note 'GetAttributes))
+  (foreach att attrs
+    (if (= (strcase (vla-get-TagString att)) "DK-KC")
+      (progn
+        (vla-GetBoundingBox att 'textlow 'texthigh)
+        (setq textlow (vlax-safearray->list textlow) texthigh (vlax-safearray->list texthigh)))))
+  ;; Existing block/tag preflight guarantees DK-KC. All bounds are WCS here.
+  (setq route (csar:note-route (csast:p base (car target) (cadr target)) low high textlow texthigh height)
+        route (mapcar '(lambda (p) (list (- (car p) (car base)) (- (cadr p) (cadr base)))) route))
+  (csar:leader space base route layer dotted
+    (distof (csad:get (if dotted 'dotsize 'ticksize)) 2) (csad:get 'dimstyle) note)
   note)
 
 (defun csar:render (space base raw data options preview gap height / cover layers top bar path mark a b side
@@ -881,7 +952,7 @@
   T)
 
 (defun csad:capture (/ key)
-  (foreach key '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "steps" "rebar" "titleheight" "dimgap")
+  (foreach key '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "steps" "rebar" "titleheight" "dimgap" "dotsize" "ticksize")
     (csad:put (read key) (get_tile key)))
   (csad:put 'dimstyle (nth (atoi (get_tile "dimstyle")) csad-styles)))
 
@@ -912,6 +983,8 @@
           ": text { label = \"Preview in the AutoCAD viewport\"; } } }"
           ": row { : edit_box { key = \"titleheight\"; label = \"Title height (mm)\"; edit_width = 12; }"
           ": edit_box { key = \"dimgap\"; label = \"Dimension spacing (mm)\"; edit_width = 12; } }"
+          ": row { : edit_box { key = \"dotsize\"; label = \"Dot blank size (mm)\"; edit_width = 12; }"
+          ": edit_box { key = \"ticksize\"; label = \"Tick size (mm)\"; edit_width = 12; } }"
           ": boxed_row { label = \"Section options\";"
           ": toggle { key = \"dims\"; label = \"Overall width\"; }"
           ": toggle { key = \"details\"; label = \"Concrete details\"; }"
@@ -931,7 +1004,7 @@
       (if (and (> id 0) (new_dialog "csad_ui" id))
         (progn
           (set_tile "path" (cond ((csad:get 'path)) (T "Open workbook in Excel, then Load Excel.")))
-          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "steps" "rebar" "status" "titleheight" "dimgap")
+          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "steps" "rebar" "status" "titleheight" "dimgap" "dotsize" "ticksize")
             (set_tile name (csad:get (read name))))
           (start_list "dimstyle") (foreach name csad-styles (add_list name)) (end_list)
           (setq index (vl-position (csad:get 'dimstyle) csad-styles))
@@ -998,6 +1071,11 @@
   (if (or (null titleheight) (null gap)
           (and titleheight (<= titleheight 0.0)) (and gap (<= gap 0.0)))
     (setq issue "Title height and dimension spacing must be positive numbers."))
+  (if (= "1" (csad:get 'rebar))
+    (foreach name '(dotsize ticksize)
+      (setq spec (distof (csad:get name) 2))
+      (if (or (null spec) (and spec (<= spec 0)))
+        (setq issue "Dot blank and Tick sizes must be positive model-space millimetres."))))
   (if (= "1" (csad:get 'details))
     (if (setq spec (csad:detail-error (csad:get 'rawpoints) (csad:get 'concrete-parameters)))
       (setq issue spec)))
@@ -1110,7 +1188,7 @@
       (status . "Load current Excel coordinates to begin."))))
   ;; Migrate cached state from earlier APPLOAD versions without fabricating
   ;; missing detail metadata. Reload Excel once to populate that metadata.
-  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400") (rebar . "0") (steps . "1"))
+  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400") (rebar . "0") (steps . "1") (dotsize . "60") (ticksize . "100"))
     (if (not (assoc (car entry) *csad-state*)) (csad:put (car entry) (cdr entry))))
   (setq action 1)
   (while (and action (/= action 0))
@@ -1125,5 +1203,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v4.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v4.2 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

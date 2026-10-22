@@ -100,7 +100,17 @@ Gửi ảnh gồm giao diện sau Load Excel và mặt cắt sau Preview/Draw Se
 
 Nút **Plan (next phase)** được vô hiệu hóa: bảng tọa độ đang có là đường bao mặt cắt, chưa chứa dữ liệu mặt bằng 2 vế/3 vế. Đã có tùy chọn tim thép dọc và thép chiếu nghỉ ở giai đoạn kiểm tra, chưa có thống kê hoặc móc/uốn hoàn chỉnh. Không lấy các thanh mẫu ở tiện ích kiểm tra để thay cho thiết kế. Bản này chưa triển khai toàn bộ cầu thang 2/3 vế.
 
-## Bản rebar-detail v4.1: sửa lỗi Annotation của ActiveX
+## Bản rebar-detail v4.2: chân dim và bố trí ghi chú
+
+Bản này sửa ba điểm theo ảnh phản hồi mới:
+
+1. **Chân dim cố định 150 mm trong Model.** Mỗi dimension mới có override `DIMFXLON=1`, `DIMFXL=150 / DIMSCALE`. Với GB 25 có scale 25 thì giá trị lưu DIMFXL là 6, khi vẽ được 150 mm. Đây là phần chân dưới đường dim; độ nhô qua đường dim vẫn theo CSA DimStyle. Chữ/số đo và các định nghĩa DimStyle có sẵn được giữ nguyên. Các hàng dim vẫn cách hình theo Dimension spacing.
+2. **Quy ước tim theo hình 2:** biên bê tông tới tim thép dọc = `BJ28`; tim chấm vào trong thêm `d cấu tạo / 2`. Không cộng thêm d thép dọc vào khoảng cách này. Ví dụ cover 25/d12: tim dọc ở 25 mm, tim chấm ở 31 mm. Hai đường tim song song với biên xiên và áp dụng tương tự cho bản chiếu nghỉ. Đây là quy ước thể hiện tim được người dùng yêu cầu, thay quy ước cover tới mặt ngoài thanh ở v4.1.
+3. **Leader thẳng, đoạn ngang dưới text.** V4.1 dùng nhầm `AcLeaderType=1` (spline); v4.2 dùng `0` (acLineWithArrow), đặt lại Type và ba đỉnh sau khi gán annotation/style. Nhánh ngang lấy vị trí dưới bounding box thực tế của attribute DK-KC, chạy qua bề rộng text, thay vì đi qua tâm cả block.
+
+UI thêm **Dot blank size (mm)** = 60 và **Tick size (mm)** = 100. Đây là kích thước đầu leader trong Model, không phải scale block hoặc đường kính thép chấm. Có thể chỉnh trên UI để kiểm tra trực tiếp; các giá trị phải dương. Chấm thép vẫn có đường kính thật theo BJ36.
+
+### Lỗi ActiveX đã sửa ở v4.1
 
 V4 gọi `AddLeader` với Annotation = `nil`. Tham số này nhận đối tượng COM; `nil` có thể bị chuyển thành tham số thiếu, dẫn tới `ActiveX Server returned an error: Parameter not optional`. V4.1 truyền **BlockReference ghi chú CSA vừa chèn** làm Annotation. Hai loại đầu leader vẫn được đặt trên từng entity.
 
@@ -119,7 +129,7 @@ Sau APPLOAD bản mới, **Load / Reload Excel** để đọc đủ thông số,
 
 | Ô | Dữ liệu sử dụng |
 |---|---|
-| `BJ28` | Cover tới bề mặt ngoài thanh; tim thép dọc cách biên cover + d/2 |
+| `BJ28` | Khoảng cách biên tới tim thép dọc theo hình 2; không cộng d thép dọc/2 |
 | `BJ29`, `BJ31` | Bề rộng vế/chiếu nghỉ, chưa dùng để suy số thanh toàn bộ mặt bằng |
 | `BJ32`, `BJ33` | Thép chiếu nghỉ dưới/trên, thanh nằm trong mặt cắt và neo vào vế xiên |
 | `BJ34`, `BJ35` | Thép dọc dưới/trên, dạng `12a150` |
@@ -134,7 +144,7 @@ Sau APPLOAD bản mới, **Load / Reload Excel** để đọc đủ thông số,
 
 Bật/tắt thanh chiếu nghỉ và bật/tắt chấm chiếu nghỉ là hai lựa chọn độc lập theo Excel. Thép cấu tạo trong vế xiên luôn đi cùng Rebar draft. BJ36 được dùng chung cho ba vùng vì workbook hiện chỉ có một đầu vào thép cấu tạo. Số lớp lấy từ BJ37.
 
-Chấm thép được đặt **vào phía trong thép dọc**: khoảng cách tim chấm tới biên bằng cover + đường kính thép dọc + nửa đường kính thép cấu tạo. Với chiếu nghỉ, đường kính thép dọc lấy từ BJ32/BJ33; với vế xiên lấy từ BJ34/BJ35. Chấm được tạo bằng polyline hai cung có bề rộng, không tạo hatch/block cho từng chấm và không đổi PDMODE. Nếu DWG tắt FILLMODE, phần tô của wide polyline có thể không hiển thị đầy đủ; đây là thiết lập hiển thị của bản vẽ.
+Chấm thép được đặt **vào phía trong đường tim thép dọc**: khoảng cách tim chấm tới biên bằng BJ28 + nửa đường kính thép cấu tạo BJ36. Đường kính thép dọc không làm thay đổi khoảng cách tim này. Chấm được tạo bằng polyline hai cung có bề rộng, không tạo hatch/block cho từng chấm và không đổi PDMODE. Nếu DWG tắt FILLMODE, phần tô của wide polyline có thể không hiển thị đầy đủ; đây là thiết lập hiển thị của bản vẽ.
 
 ### Phạm vi hình học thép
 
@@ -142,16 +152,16 @@ Thép vế xiên vẫn là một tim thanh đại diện mỗi lớp, có đoạ
 
 Tim thanh được nối bằng các đoạn thẳng để kiểm tra bố trí, chưa thêm bán kính uốn hoặc suy ra chiều dài cắt gia công. Các đoạn thép vế xiên và chiếu nghỉ có thể trùng hình chiếu; vị trí theo chiều rộng, nối chồng và khoảng cách thanh tại nút chưa được giải quyết bằng bản vẽ 2D này. Ghi chú `REBAR DRAFT` đi cùng hình.
 
-Chương trình kiểm tra đường thanh/chấm nằm trong bê tông, đủ cover và hai lớp cùng loại không đè lên nhau. Nếu neo không đủ chỗ, báo lỗi và giữ preview trước, không tự rút ngắn thanh. Nếu lớp thép cấu tạo không đủ chỗ giữa các lớp thép dọc, cần sửa thông số; không tự giảm đường kính, bỏ lớp hoặc đổi cover. Giới hạn 2000 chấm cho mỗi vùng/lớp tránh đầu vào bước thép quá nhỏ làm treo AutoCAD. Các kiểm tra này chưa tính khoảng cách tối thiểu theo tiêu chuẩn thiết kế.
+Chương trình kiểm tra đường thanh/chấm nằm trong bê tông, đủ cover và hai lớp cùng loại không đè lên nhau. Nếu neo không đủ chỗ, báo lỗi và giữ preview trước, không tự rút ngắn thanh. Nếu hai lớp chấm thép không đủ chỗ theo chiều dày bản, cần sửa thông số; không tự giảm đường kính, bỏ lớp hoặc đổi cover. Giới hạn 2000 chấm cho mỗi vùng/lớp tránh đầu vào bước thép quá nhỏ làm treo AutoCAD. Các kiểm tra này chưa tính khoảng cách tối thiểu theo tiêu chuẩn thiết kế.
 
 Thép dùng `18-GB-Reinf`, leader/ghi chú dùng `20-GB-GC`. Block `CSA_Sohieu-KCthep` giữ scale 1.0 với tag `SH`, `DK-KC`; text đường kính dùng mã `%%C`. Preview dùng hệ đánh dấu riêng và layer `CSA-PREVIEW` như trước.
 
 ### Kiểm tra trong AutoCAD
 
-1. APPLOAD file mới, command line phải báo **rebar-detail v4.1**. Load / Reload Excel một lần.
+1. APPLOAD file mới, command line phải báo **rebar-detail v4.2**. Load / Reload Excel một lần.
 2. Bật Step counts from Excel và Rebar draft, Preview ở vùng trống. File mẫu có `12 BAC` và `2 BAC`.
-3. Chọn leader trong Properties: thanh mặt cắt là Architectural tick, chấm thép là Dot blank; có nhánh ngang tới block số hiệu. Không còn dùng LINE đơn thay cho leader.
-4. Kiểm tra chấm theo BJ36: mặc định d12, bước tim 100 mm; đo dọc bản xiên. Kiểm tra cả hai lớp và từng chiếu nghỉ đang bật.
+3. Chọn leader trong Properties: Type là Straight/Line with arrow; thanh mặt cắt dùng Architectural tick size 100, chấm thép dùng Dot blank size 60 (hoặc giá trị vừa nhập trên UI). Nhánh ngang phải nằm dưới text DK-KC, không còn đường spline.
+4. Kiểm tra chấm theo BJ36: mặc định d12, bước tim 100 mm; đo dọc bản xiên. Với BJ28=25, tim dọc cách biên 25 và tim chấm cách biên 31 mm. Kiểm tra cả hai lớp và từng chiếu nghỉ đang bật. Đo chân dim được 150 mm ở các hàng dim, kể cả tổng ngang, tổng chênh cao và dim bản xiên.
 5. Zoom vào hai nút: thanh chiếu nghỉ phải đi tiếp vào vế xiên, không kết thúc ngang cụt như v3. Đo đoạn xiên neo d12/30d được 360 mm; đoạn đứng chuyển tiếp không tính vào 360 này.
 6. Thử đổi Yes/No Z23:Z26 trong Excel, Load / Reload rồi Preview; số hiệu chỉ gán cho nhóm được vẽ. Đổi cover theo workbook, không khóa cứng 15/25.
 7. Draw Section tại điểm mới khi đã kiểm tra. Các bản vẽ chính thức cũ không tự cập nhật.
@@ -162,4 +172,4 @@ Thép dùng `18-GB-Reinf`, leader/ghi chú dùng `20-GB-GC`. Block `CSA_Sohieu-K
 
 Nguồn UI ở `../ui/CSA_StairDrawing.core.lsp`, planner dimension ở `../ui/CSA_StairConcreteDetails.lsp`, tim thép ở `../ui/CSA_StairRebar.lsp`; bản một file được tạo bằng `python3 stair-tool/tools/build_stair_bundle.py`. Không sửa trực tiếp file gộp. Chạy `python3 -m unittest discover -s stair-tool/tests -v` để kiểm tra.
 
-Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v4.1**.
+Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v4.2**.
