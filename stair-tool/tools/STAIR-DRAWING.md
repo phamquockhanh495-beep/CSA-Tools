@@ -100,7 +100,13 @@ Gửi ảnh gồm giao diện sau Load Excel và mặt cắt sau Preview/Draw Se
 
 Nút **Plan (next phase)** được vô hiệu hóa: bảng tọa độ đang có là đường bao mặt cắt, chưa chứa dữ liệu mặt bằng 2 vế/3 vế. Đã có tùy chọn tim thép dọc và thép chiếu nghỉ ở giai đoạn kiểm tra, chưa có thống kê hoặc móc/uốn hoàn chỉnh. Không lấy các thanh mẫu ở tiện ích kiểm tra để thay cho thiết kế. Bản này chưa triển khai toàn bộ cầu thang 2/3 vế.
 
-## Bản rebar-detail v4: leader, số bậc, neo và thép chấm
+## Bản rebar-detail v4.1: sửa lỗi Annotation của ActiveX
+
+V4 gọi `AddLeader` với Annotation = `nil`. Tham số này nhận đối tượng COM; `nil` có thể bị chuyển thành tham số thiếu, dẫn tới `ActiveX Server returned an error: Parameter not optional`. V4.1 truyền **BlockReference ghi chú CSA vừa chèn** làm Annotation. Hai loại đầu leader vẫn được đặt trên từng entity.
+
+Thông báo lỗi mới nêu rõ bước đang chạy, ví dụ `Leader: AddLeader with CSA block annotation` hoặc `Leader: set ArrowheadType`, kèm nguyên văn lỗi ActiveX trong hộp thoại và F2. Các đối tượng vừa tạo được dọn khi lỗi; preview cũ chỉ được thay sau khi dựng hình mới thành công. Bản sửa đã kiểm tra hợp đồng truyền tham số bằng stub offline, chưa được thực thi COM trong AutoCAD tại môi trường này.
+
+### Leader, số bậc, neo và thép chấm
 
 Sau APPLOAD bản mới, **Load / Reload Excel** để đọc đủ thông số, bật **Step counts from Excel** và **Rebar draft**, rồi Preview tại vùng trống. Tùy chọn Rebar draft mặc định tắt. Bản v4 đã có các thay đổi theo ảnh phản hồi:
 
@@ -142,7 +148,7 @@ Thép dùng `18-GB-Reinf`, leader/ghi chú dùng `20-GB-GC`. Block `CSA_Sohieu-K
 
 ### Kiểm tra trong AutoCAD
 
-1. APPLOAD file mới, command line phải báo **rebar-detail v4**. Load / Reload Excel một lần.
+1. APPLOAD file mới, command line phải báo **rebar-detail v4.1**. Load / Reload Excel một lần.
 2. Bật Step counts from Excel và Rebar draft, Preview ở vùng trống. File mẫu có `12 BAC` và `2 BAC`.
 3. Chọn leader trong Properties: thanh mặt cắt là Architectural tick, chấm thép là Dot blank; có nhánh ngang tới block số hiệu. Không còn dùng LINE đơn thay cho leader.
 4. Kiểm tra chấm theo BJ36: mặc định d12, bước tim 100 mm; đo dọc bản xiên. Kiểm tra cả hai lớp và từng chiếu nghỉ đang bật.
@@ -156,4 +162,4 @@ Thép dùng `18-GB-Reinf`, leader/ghi chú dùng `20-GB-GC`. Block `CSA_Sohieu-K
 
 Nguồn UI ở `../ui/CSA_StairDrawing.core.lsp`, planner dimension ở `../ui/CSA_StairConcreteDetails.lsp`, tim thép ở `../ui/CSA_StairRebar.lsp`; bản một file được tạo bằng `python3 stair-tool/tools/build_stair_bundle.py`. Không sửa trực tiếp file gộp. Chạy `python3 -m unittest discover -s stair-tool/tests -v` để kiểm tra.
 
-Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v4**.
+Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v4.1**.

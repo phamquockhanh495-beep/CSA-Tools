@@ -153,13 +153,20 @@ class RebarTests(unittest.TestCase):
     def test_native_leader_arrow_types_are_per_entity(self):
         for dotted, expected in [(None, 4), (True, 12)]:
             pure, props = PureLisp(self.forms), {}
+            def add_leader(space, arr, note, kind):
+                # Model the required dispatch argument that the old nil call
+                # failed to supply. This is an API contract test, not COM execution.
+                if note is None:
+                    raise ValueError('Parameter not optional: Annotation')
+                props.update(coords=arr, annotation=note, kind=kind)
+                return 'leader'
             pure.host.update({
                 'csast:p': lambda base, x, y: [base[0]+x, base[1]+y, base[2]],
                 '1-': lambda v: v-1,
                 'cons': lambda *v: v,
                 'vlax-make-safearray': lambda *args: [],
                 'vlax-safearray-fill': lambda arr, coords: arr.extend(coords),
-                'vla-AddLeader': lambda space, arr, note, kind: props.update(coords=arr, kind=kind) or 'leader',
+                'vla-AddLeader': add_leader,
                 'csast:track': lambda obj: obj,
                 'vla-put-Layer': lambda *args: None,
                 'vla-put-StyleName': lambda *args: None,
@@ -172,12 +179,22 @@ class RebarTests(unittest.TestCase):
             pure.defs['leader-test'] = ['defun', 'leader-test', [],
                 ['setq', 'vlax-vbDouble', 5],
                 ['csar:leader', None, ['quote', [10,20,30]],
-                 ['quote', [[1,2],[3,4],[5,4]]], '20-GB-GC', dotted, 62.5, 12, 'GB 25']]
+                 ['quote', [[1,2],[3,4],[5,4]]], '20-GB-GC', dotted, 62.5, 12, 'GB 25', 'CSA note BlockReference']]
             pure.call('leader-test')
+            self.assertEqual(props['annotation'], 'CSA note BlockReference')
             self.assertEqual(props['arrow'], expected)
             self.assertEqual(props['scale'], 1)
             self.assertEqual(props['kind'], 1)
             self.assertEqual(props['coords'], [11,22,30,13,24,30,15,24,30])
+
+    def test_note_passes_its_created_block_to_leader(self):
+        calls = [f for f in walk(self.pure.defs['csar:note'])
+                 if isinstance(f, list) and f and f[0] == 'csar:leader']
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][-1], 'note')
+        calls = [f for f in walk(self.pure.defs['csar:leader'])
+                 if isinstance(f, list) and f and f[0] == 'vla-AddLeader']
+        self.assertEqual(calls[0][3], 'annotation')
 
     def test_filled_dot_geometry_has_actual_bar_diameter(self):
         pure, props = PureLisp(self.forms), {}

@@ -248,6 +248,7 @@
   issue)
 
 (defun csar:polyline (space base points layer / coords p array object)
+  (setq csad-stage "Rebar: create polyline")
   (foreach p points
     (setq coords (append coords (list (+ (car base) (car p)) (+ (cadr base) (cadr p))))))
   (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
@@ -263,36 +264,47 @@
   (setq object (csar:polyline space base
     (list (list (- (car point) (/ diameter 4.0)) (cadr point))
           (list (+ (car point) (/ diameter 4.0)) (cadr point))) layer))
+  (setq csad-stage "Transverse dot: set bulges and width")
   (vla-put-Closed object :vlax-true)
   (vla-SetBulge object 0 1.0) (vla-SetBulge object 1 1.0)
   (vla-put-ConstantWidth object (/ diameter 2.0))
   object)
 
-(defun csar:leader (space base points layer dotted height diameter style / coords point array object)
+(defun csar:leader (space base points layer dotted height diameter style annotation / coords point array object)
   (foreach point points
     (setq coords (append coords (csast:p base (car point) (cadr point)))))
   (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
   (vlax-safearray-fill array coords)
-  ;; LEADER with no annotation: the CSA attributed block remains independent.
-  (setq object (csast:track (vla-AddLeader space array nil 1))) ; acLineWithArrow
+  ;; Annotation is a required IDispatch parameter. AutoLISP nil can be marshalled
+  ;; as a missing argument, not a null dispatch, causing "Parameter not optional".
+  ;; Pass the existing CSA BlockReference, an annotation type AddLeader supports.
+  (setq csad-stage "Leader: AddLeader with CSA block annotation")
+  (setq object (csast:track (vla-AddLeader space array annotation 1))) ; acLineWithArrow
+  (setq csad-stage "Leader: set layer and DimStyle")
   (vla-put-Layer object layer) (vla-put-StyleName object style)
+  (setq csad-stage "Leader: set ScaleFactor")
   (vla-put-ScaleFactor object 1.0)
   ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
+  (setq csad-stage "Leader: set ArrowheadType")
   (vla-put-ArrowheadType object (if dotted 12 4))
+  (setq csad-stage "Leader: set ArrowheadSize")
   (vla-put-ArrowheadSize object (if dotted (max (* 2.0 diameter) (* 0.6 height)) (* 0.8 height)))
+  (setq csad-stage "Leader: Update")
   (vla-Update object)
   object)
 
 (defun csar:note (space base target point bar mark dotted preview height / layer note low high attach elbow)
+  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block"))
   (setq layer (if preview "CSA-PREVIEW" "20-GB-GC")
         note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
           layer 1.0 (list (cons "SH" (itoa mark)) (cons "DK-KC" (strcat "%%C" (nth 2 bar))))))
+  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": center note / GetBoundingBox"))
   (csad:center note (csast:p base (car point) (cadr point)))
   (vla-GetBoundingBox note 'low 'high)
   (setq low (vlax-safearray->list low) high (vlax-safearray->list high)
         attach (list (- (if (< (car target) (car point)) (car low) (car high)) (car base)) (cadr point))
         elbow (list (+ (car attach) (* (if (< (car target) (car point)) -2.0 2.0) height)) (cadr attach)))
-  (csar:leader space base (list target elbow attach) layer dotted height (car bar) (csad:get 'dimstyle))
+  (csar:leader space base (list target elbow attach) layer dotted height (car bar) (csad:get 'dimstyle) note)
   note)
 
 (defun csar:render (space base raw data options preview gap height / cover layers top bar path mark a b side

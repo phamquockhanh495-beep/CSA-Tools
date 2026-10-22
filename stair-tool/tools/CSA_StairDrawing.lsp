@@ -666,6 +666,7 @@
   issue)
 
 (defun csar:polyline (space base points layer / coords p array object)
+  (setq csad-stage "Rebar: create polyline")
   (foreach p points
     (setq coords (append coords (list (+ (car base) (car p)) (+ (cadr base) (cadr p))))))
   (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
@@ -681,36 +682,47 @@
   (setq object (csar:polyline space base
     (list (list (- (car point) (/ diameter 4.0)) (cadr point))
           (list (+ (car point) (/ diameter 4.0)) (cadr point))) layer))
+  (setq csad-stage "Transverse dot: set bulges and width")
   (vla-put-Closed object :vlax-true)
   (vla-SetBulge object 0 1.0) (vla-SetBulge object 1 1.0)
   (vla-put-ConstantWidth object (/ diameter 2.0))
   object)
 
-(defun csar:leader (space base points layer dotted height diameter style / coords point array object)
+(defun csar:leader (space base points layer dotted height diameter style annotation / coords point array object)
   (foreach point points
     (setq coords (append coords (csast:p base (car point) (cadr point)))))
   (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
   (vlax-safearray-fill array coords)
-  ;; LEADER with no annotation: the CSA attributed block remains independent.
-  (setq object (csast:track (vla-AddLeader space array nil 1))) ; acLineWithArrow
+  ;; Annotation is a required IDispatch parameter. AutoLISP nil can be marshalled
+  ;; as a missing argument, not a null dispatch, causing "Parameter not optional".
+  ;; Pass the existing CSA BlockReference, an annotation type AddLeader supports.
+  (setq csad-stage "Leader: AddLeader with CSA block annotation")
+  (setq object (csast:track (vla-AddLeader space array annotation 1))) ; acLineWithArrow
+  (setq csad-stage "Leader: set layer and DimStyle")
   (vla-put-Layer object layer) (vla-put-StyleName object style)
+  (setq csad-stage "Leader: set ScaleFactor")
   (vla-put-ScaleFactor object 1.0)
   ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
+  (setq csad-stage "Leader: set ArrowheadType")
   (vla-put-ArrowheadType object (if dotted 12 4))
+  (setq csad-stage "Leader: set ArrowheadSize")
   (vla-put-ArrowheadSize object (if dotted (max (* 2.0 diameter) (* 0.6 height)) (* 0.8 height)))
+  (setq csad-stage "Leader: Update")
   (vla-Update object)
   object)
 
 (defun csar:note (space base target point bar mark dotted preview height / layer note low high attach elbow)
+  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block"))
   (setq layer (if preview "CSA-PREVIEW" "20-GB-GC")
         note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
           layer 1.0 (list (cons "SH" (itoa mark)) (cons "DK-KC" (strcat "%%C" (nth 2 bar))))))
+  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": center note / GetBoundingBox"))
   (csad:center note (csast:p base (car point) (cadr point)))
   (vla-GetBoundingBox note 'low 'high)
   (setq low (vlax-safearray->list low) high (vlax-safearray->list high)
         attach (list (- (if (< (car target) (car point)) (car low) (car high)) (car base)) (cadr point))
         elbow (list (+ (car attach) (* (if (< (car target) (car point)) -2.0 2.0) height)) (cadr attach)))
-  (csar:leader space base (list target elbow attach) layer dotted height (car bar) (csad:get 'dimstyle))
+  (csar:leader space base (list target elbow attach) layer dotted height (car bar) (csad:get 'dimstyle) note)
   note)
 
 (defun csar:render (space base raw data options preview gap height / cover layers top bar path mark a b side
@@ -971,13 +983,15 @@
 
 (defun csad:render (preview / *error* points base doc space csast-created csast-app
                             started old e layer coords array pl o minx maxx miny maxy
-                            height titleheight gap specs spec ds p toppt bottom top need name issue entities)
+                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage)
   (defun *error* (msg)
     (foreach o csast-created (vl-catch-all-apply 'vla-Delete (list o)))
     (if started (vl-catch-all-apply 'vla-EndUndoMark (list doc)))
-    (if msg (princ (strcat "\nSection stopped: " msg)))
-    (alert "Section operation stopped. Check the command history (F2).")
+    (if msg (princ (strcat "\nSection stopped at [" (if csad-stage csad-stage "unknown") "]: " msg)))
+    (alert (strcat "Section operation stopped at: " (if csad-stage csad-stage "unknown")
+      "\n" (if msg msg "No error message.") "\nCheck command history (F2)."))
     (princ))
+  (setq csad-stage "Section preflight")
   (setq points (csad:get 'points) bottom (distof (csad:get 'bottom) 2)
         top (distof (csad:get 'top) 2) old (csad:owned)
         titleheight (distof (csad:get 'titleheight) 2) gap (distof (csad:get 'dimgap) 2))
@@ -1030,10 +1044,12 @@
   (if issue (alert issue)
     (if (setq base (getpoint (if preview "\nPick section preview origin: " "\nPick final section origin: ")))
       (progn
+        (setq csad-stage "Section: get active document and ModelSpace")
         (setq base (trans base 1 0)
               doc (vla-get-ActiveDocument (vlax-get-acad-object)) space (vla-get-ModelSpace doc)
               csast-app (if preview "CSA_STAIR_PREVIEW" "CSA_STAIR_FINAL")
               layer (if preview "CSA-PREVIEW" "21-GB-BD"))
+        (setq csad-stage "Section: StartUndoMark / prepare layer")
         (vla-StartUndoMark doc) (setq started T)
         (if (not (tblsearch "LAYER" layer))
           (progn (setq o (vla-Add (vla-get-Layers doc) layer))
@@ -1050,9 +1066,12 @@
           (setq coords (append coords (list (+ (car base) (car p)) (+ (cadr base) (cadr p))))))
         (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
         (vlax-safearray-fill array coords)
+        (setq csad-stage "Concrete: create outline")
         (setq pl (csast:track (vla-AddLightWeightPolyline space array)))
         (vla-put-Layer pl layer) (vla-put-Closed pl :vlax-true) (vla-put-Elevation pl (caddr base))
+        (setq csad-stage "Caption: title and Daucat")
         (csad:caption space base minx maxx miny titleheight gap preview)
+        (setq csad-stage "Concrete: dimensions")
         (if (= "1" (csad:get 'dims))
           (csad:draw-spec space base
             (list "overall_width" "H" (list minx miny) (list maxx miny)
@@ -1061,18 +1080,22 @@
         (if (= "1" (csad:get 'details))
           (foreach spec (csad:detail-specs (csad:get 'rawpoints) gap)
             (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
+        (setq csad-stage "Elevations: Cao do blocks")
         (if (= "1" (csad:get 'levels))
           (progn
             (csast:insert space "Cao do" (csast:p base (caar points) (cadar points))
               (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext bottom))))
             (csast:insert space "Cao do" (csast:p base (car toppt) (cadr toppt))
               (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext top))))))
+        (setq csad-stage "Steps: labels and bounding boxes")
         (if (= "1" (csad:get 'steps))
           (csad:draw-steps space base (csad:get 'rawpoints) (csad:get 'section-options) gap height preview))
+        (setq csad-stage "Rebar: start drawing")
         (if (= "1" (csad:get 'rebar))
           (csar:render space base (csad:get 'rawpoints) (csad:get 'rebar-data)
             (csad:get 'section-options) preview gap height))
         ;; Replace only previously tagged previews after new geometry succeeds.
+        (setq csad-stage "Section: replace old preview / Regen")
         (foreach e old (if (not (entdel e)) (progn (princ "\nCannot delete old preview.") (exit))))
         (vla-Regen doc 0) (vla-EndUndoMark doc) (setq started nil)
         (csad:put 'status (if preview "Section preview updated. Final geometry retained."
@@ -1102,5 +1125,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v4 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v4.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)
