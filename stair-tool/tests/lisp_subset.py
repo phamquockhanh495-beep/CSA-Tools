@@ -20,7 +20,10 @@ class PureLisp:
             '*': lambda a, b: a * b, '/': lambda a, b: a / b,
             '<': lambda a, b: a < b, '>': lambda a, b: a > b,
             '>=': lambda a, b: a >= b, '=': lambda a, b: a == b,
+            '<=': lambda a, b: a <= b, '/=': lambda a, b: a != b,
+            'not': lambda v: not truth(v), 'numberp': lambda v: isinstance(v, (int, float)),
             'abs': abs, 'null': lambda v: not truth(v), 'length': lambda v: len(v or []),
+            'min': min, 'max': max, 'nth': lambda i, v: v[i] if i < len(v) else None,
             'car': lambda v: v[0] if v else None, 'cdr': lambda v: v[1:] if v else None,
             'cadr': lambda v: v[1], 'caar': lambda v: v[0][0],
             'cadar': lambda v: v[0][1], 'last': lambda v: v[-1] if v else None,
@@ -31,6 +34,8 @@ class PureLisp:
             'substr': lambda s, start, length=None: s[start-1:] if length is None else s[start-1:start-1+length],
             'vl-string-search': lambda part, s: s.index(part) if part in s else None,
         }
+        self.host['mapcar'] = lambda fn, values: [self.call(fn, v) for v in values]
+        self.host['apply'] = lambda fn, values: self.call(fn, *values)
 
     def call(self, name, *args):
         return self.invoke(name, args, ChainMap({}))
@@ -64,6 +69,13 @@ class PureLisp:
         if not form: return None
         op, *xs = form
         if op == 'quote': return xs[0]
+        if op == 'progn': return self.body(xs, env)
+        if op == 'cond':
+            for test, *body in xs:
+                value = self.eval(test, env)
+                if truth(value):
+                    return self.body(body, env) if body else value
+            return None
         if op == 'setq':
             result = None
             for name, value in zip(xs[::2], xs[1::2]):

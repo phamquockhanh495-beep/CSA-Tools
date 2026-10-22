@@ -6,10 +6,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def bundle():
     helpers = (ROOT / 'tools/CSA_StairStandardsTest.lsp').read_text()
+    details = (ROOT / 'ui/CSA_StairConcreteDetails.lsp').read_text()
     core = (ROOT / 'ui/CSA_StairDrawing.core.lsp').read_text()
     return (';;; Generated standalone CSA Stair Drawing; do not edit this bundle.\n'
-            ';;; Source: tools/CSA_StairStandardsTest.lsp + ui/CSA_StairDrawing.core.lsp\n'
-            + helpers + '\n' + core)
+            ';;; Source: standards helpers + ui/CSA_StairConcreteDetails.lsp + ui/CSA_StairDrawing.core.lsp\n'
+            + helpers + '\n' + details + '\n' + core)
 
 
 if __name__ == '__main__':

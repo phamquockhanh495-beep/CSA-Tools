@@ -54,7 +54,7 @@ Public Function CSA_InsertTaggedBlock(ByVal name As String, ByVal layer As Strin
     ByVal texts As Variant) As Object
     Dim definition As Object, obj As Object, attributes As Variant, att As Variant
     Dim expected As Object, i As Long, key As String
-    Dim errorNumber As Long, errorText As String
+    Dim errorNumber As Long, errorText As String, actualScale As Double
     On Error GoTo Failed
     If scale <= 0# Then Err.Raise vbObjectError + 421, , "Block scale must be positive."
     Set definition = ThisDrawing.Blocks.Item(name)
@@ -68,6 +68,14 @@ Public Function CSA_InsertTaggedBlock(ByVal name As String, ByVal layer As Strin
         expected.Add CStr(tags(i)), CStr(texts(i - LBound(tags) + LBound(texts)))
     Next i
     Set obj = ThisDrawing.ModelSpace.InsertBlock(point, name, scale, scale, scale, 0#)
+    actualScale = obj.XScaleFactor
+    If actualScale <= 0# Then Err.Raise vbObjectError + 424, , "Invalid inserted block scale."
+    If Abs(actualScale - scale) > 0.000000001 Then obj.ScaleEntity point, scale / actualScale
+    If Abs(obj.XScaleFactor - scale) > 0.00000001 Or _
+       Abs(obj.YScaleFactor - scale) > 0.00000001 Or _
+       Abs(obj.ZScaleFactor - scale) > 0.00000001 Then
+        Err.Raise vbObjectError + 425, , "Cannot normalize block reference scale."
+    End If
     ApplyLayer obj, layer
     If obj.HasAttributes Then
         attributes = obj.GetAttributes

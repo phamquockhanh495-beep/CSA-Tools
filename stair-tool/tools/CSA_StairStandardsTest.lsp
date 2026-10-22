@@ -116,9 +116,28 @@
   (vla-put-StyleName o style)
   o)
 
+(defun csast:scale-ratio (requested actual)
+  (if (or (<= requested 0.0) (<= actual 0.0))
+    (progn (princ "\nInvalid block reference scale.") (exit)))
+  (/ requested actual))
+
+(defun csast:normalize-scale (o point requested / actual ratio)
+  ;; InsertBlock may compensate for block units. Match the reference scale
+  ;; accepted in Properties, not the method argument before unit conversion.
+  ;; ScaleEntity transforms attributes together with the block geometry.
+  (setq actual (vla-get-XScaleFactor o) ratio (csast:scale-ratio requested actual))
+  (if (> (abs (- ratio 1.0)) 0.000000001)
+    (vla-ScaleEntity o (vlax-3d-point point) ratio))
+  (if (or (> (abs (- (vla-get-XScaleFactor o) requested)) 0.00000001)
+          (> (abs (- (vla-get-YScaleFactor o) requested)) 0.00000001)
+          (> (abs (- (vla-get-ZScaleFactor o) requested)) 0.00000001))
+    (progn (princ "\nCannot normalize the block reference scales.") (exit)))
+  (vla-Update o))
+
 (defun csast:insert (space name point layer scale values / o attrs att entry found)
   (setq o (csast:track (vla-InsertBlock space (vlax-3d-point point) name scale scale scale 0.0)))
   (vla-put-Layer o layer)
+  (csast:normalize-scale o point scale)
   (setq attrs (vlax-invoke o 'GetAttributes))
   ;; Tags, never attribute order, determine what gets written.
   (foreach att attrs

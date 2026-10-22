@@ -41,7 +41,7 @@
   (/ (abs area) 2.0))
 
 (defun csad:loadexcel (path / *error* excel books book sheets sheet cells row id x y candidate ref
-                           points rawcount rise bottom title firstlevel high found)
+                           points rawpoints metadata rawcount rise bottom title firstlevel high found)
   (defun *error* (msg)
     (foreach ref (list cells sheet sheets book books excel)
       (if (= (type ref) 'VLA-OBJECT) (vl-catch-all-apply 'vlax-release-object (list ref))))
@@ -62,13 +62,13 @@
         id (csad:cell cells row 77))
   (while (and (<= row 500) id (not (equal id "")))
     (setq x (csad:cell cells row 78) y (csad:cell cells row 79))
-    (if (not (and (numberp id) (numberp x) (numberp y)))
+    (if (not (and (numberp id) (= id (1+ rawcount)) (numberp x) (numberp y)))
       (progn (princ (strcat "\nInvalid STT/X/Y at row " (itoa row))) (exit)))
     (setq points (cons (list (float x) (float y)) points)
           rawcount (1+ rawcount) row (1+ row) id (csad:cell cells row 77)))
   (if (and id (not (equal id "")))
     (progn (princ "\nCoordinate table exceeds row 500.") (exit)))
-  (setq points (csad:cleanpoints (reverse points)))
+  (setq rawpoints (reverse points) points (csad:cleanpoints rawpoints))
   (if (or (< (length points) 3) (< (csad:area points) 0.000001))
     (progn (princ "\nCoordinate outline is empty or degenerate.") (exit)))
   (setq rise (csad:cell cells 22 4) bottom (csad:cell cells 30 13)
@@ -78,6 +78,11 @@
   (if (not (and (numberp rise) (> rise 0) (numberp bottom)
                 (< (abs (- rise (- high firstlevel))) 0.5)))
     (progn (princ "\nD22/M30 or the floor-level geometry does not match this workbook contract.") (exit)))
+  (setq metadata (list (csad:cell cells 19 8) (csad:cell cells 19 26)
+    (csad:cell cells 19 53) (csad:cell cells 31 4) (csad:cell cells 33 4)
+    (csad:cell cells 21 73) (csad:cell cells 22 73) (csad:cell cells 27 41)))
+  (csad:put 'rawpoints rawpoints)
+  (csad:put 'concrete-parameters metadata)
   (csad:put 'points points)
   (csad:put 'path path)
   (csad:put 'bottom (csad:fixed3 bottom))
@@ -90,7 +95,7 @@
   T)
 
 (defun csad:capture (/ key)
-  (foreach key '("title" "section" "bottom" "top" "dims" "levels" "symbol")
+  (foreach key '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "titleheight" "dimgap")
     (csad:put (read key) (get_tile key)))
   (csad:put 'dimstyle (nth (atoi (get_tile "dimstyle")) csad-styles)))
 
@@ -119,8 +124,11 @@
           ": text { label = \"So hieu thep : 0.35\"; }"
           ": text { label = \"CSA_Sohieu-KCthep : 1.0\"; }"
           ": text { label = \"Preview in the AutoCAD viewport\"; } } }"
+          ": row { : edit_box { key = \"titleheight\"; label = \"Title height (mm)\"; edit_width = 12; }"
+          ": edit_box { key = \"dimgap\"; label = \"Dimension spacing (mm)\"; edit_width = 12; } }"
           ": boxed_row { label = \"Section options\";"
           ": toggle { key = \"dims\"; label = \"Overall dimensions\"; }"
+          ": toggle { key = \"details\"; label = \"Concrete details\"; }"
           ": toggle { key = \"levels\"; label = \"Elevations\"; }"
           ": toggle { key = \"symbol\"; label = \"Section symbol\"; } }"
           ": text { key = \"status\"; width = 80; }"
@@ -135,7 +143,7 @@
       (if (and (> id 0) (new_dialog "csad_ui" id))
         (progn
           (set_tile "path" (cond ((csad:get 'path)) (T "Open workbook in Excel, then Load Excel.")))
-          (foreach name '("title" "section" "bottom" "top" "dims" "levels" "symbol" "status")
+          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "status" "titleheight" "dimgap")
             (set_tile name (csad:get (read name))))
           (start_list "dimstyle") (foreach name csad-styles (add_list name)) (end_list)
           (setq index (vl-position (csad:get 'dimstyle) csad-styles))
@@ -187,7 +195,7 @@
 
 (defun csad:render (preview / *error* points base doc space csast-created csast-app
                             started old e layer coords array pl o minx maxx miny maxy
-                            height ds p toppt bottom top need name issue entities)
+                            height titleheight gap specs spec ds p toppt bottom top need name issue entities)
   (defun *error* (msg)
     (foreach o csast-created (vl-catch-all-apply 'vla-Delete (list o)))
     (if started (vl-catch-all-apply 'vla-EndUndoMark (list doc)))
@@ -195,7 +203,14 @@
     (alert "Section operation stopped. Check the command history (F2).")
     (princ))
   (setq points (csad:get 'points) bottom (distof (csad:get 'bottom) 2)
-        top (distof (csad:get 'top) 2) old (csad:owned))
+        top (distof (csad:get 'top) 2) old (csad:owned)
+        titleheight (distof (csad:get 'titleheight) 2) gap (distof (csad:get 'dimgap) 2))
+  (if (or (null titleheight) (null gap)
+          (and titleheight (<= titleheight 0.0)) (and gap (<= gap 0.0)))
+    (setq issue "Title height and dimension spacing must be positive numbers."))
+  (if (= "1" (csad:get 'details))
+    (if (setq spec (csad:detail-error (csad:get 'rawpoints) (csad:get 'concrete-parameters)))
+      (setq issue spec)))
   (if (or (null bottom) (null top) (<= top bottom))
     (setq issue "Enter valid elevations with top above bottom."))
   (if (and points bottom top
@@ -208,7 +223,8 @@
   (setq need (if preview '("CSA-PREVIEW") '("21-GB-BD" "10-GB-Text")))
   (if (not preview)
     (progn
-      (if (= "1" (csad:get 'dims)) (setq need (cons "04-GB-Dim" need)))
+      (if (or (= "1" (csad:get 'dims)) (= "1" (csad:get 'details)))
+        (setq need (cons "04-GB-Dim" need)))
       (if (= "1" (csad:get 'levels)) (setq need (cons "11-GB-Cao Do" need)))
       (if (= "1" (csad:get 'symbol)) (setq need (cons "12-GB-Ky Hieu" need)))))
   (foreach name need
@@ -248,27 +264,23 @@
         (vlax-safearray-fill array coords)
         (setq pl (csast:track (vla-AddLightWeightPolyline space array)))
         (vla-put-Layer pl layer) (vla-put-Closed pl :vlax-true) (vla-put-Elevation pl (caddr base))
-        (csast:text space (csad:get 'title) (csast:p base minx (- miny 1000)) height
-          (if preview layer "10-GB-Text") "01-GB-Arial")
+        (csad:caption space base minx maxx miny titleheight gap preview)
         (if (= "1" (csad:get 'dims))
-          (foreach p (list
-            (list (csast:p base minx miny) (csast:p base maxx miny)
-                  (csast:p base (/ (+ minx maxx) 2.0) (- miny 500)))
-            (list (csast:p base maxx miny) (csast:p base maxx maxy)
-                  (csast:p base (+ maxx 500) (/ (+ miny maxy) 2.0))))
-            (setq o (csast:track (vla-AddDimAligned space
-              (vlax-3d-point (car p)) (vlax-3d-point (cadr p)) (vlax-3d-point (caddr p)))))
-            (vla-put-Layer o (if preview layer "04-GB-Dim"))
-            (vla-put-StyleName o (csad:get 'dimstyle))))
+          (foreach spec (list
+            (list "overall_width" "H" (list minx miny) (list maxx miny)
+                  (list (/ (+ minx maxx) 2.0) (- miny (* 2.0 gap))))
+            (list "overall_height" "V" (list maxx miny) (list maxx maxy)
+                  (list (+ maxx (* 3.0 gap)) (/ (+ miny maxy) 2.0))))
+            (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
+        (if (= "1" (csad:get 'details))
+          (foreach spec (csad:detail-specs (csad:get 'rawpoints) gap)
+            (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
         (if (= "1" (csad:get 'levels))
           (progn
             (csast:insert space "Cao do" (csast:p base (caar points) (cadar points))
               (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext bottom))))
             (csast:insert space "Cao do" (csast:p base (car toppt) (cadr toppt))
               (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext top))))))
-        (if (= "1" (csad:get 'symbol))
-          (csast:insert space "Daucat" (csast:p base minx (- miny 1400))
-            (if preview layer "12-GB-Ky Hieu") 0.0075 (list (cons "A" (csad:get 'section)))))
         ;; Replace only previously tagged previews after new geometry succeeds.
         (foreach e old (if (not (entdel e)) (progn (princ "\nCannot delete old preview.") (exit))))
         (vla-Regen doc 0) (vla-EndUndoMark doc) (setq started nil)
@@ -277,11 +289,15 @@
         (princ (strcat "\n" (csad:get 'status))))))
   (princ))
 
-(defun c:CSA_STAIR_DRAWING (/ action path)
+(defun c:CSA_STAIR_DRAWING (/ action path entry)
   (if (not (boundp '*csad-state*))
     (setq *csad-state* '((title . "ST-01") (section . "1-1") (dimstyle . "GB 25")
       (bottom . "0.000") (top . "0.000") (dims . "1") (levels . "1") (symbol . "1")
       (status . "Load current Excel coordinates to begin."))))
+  ;; Migrate cached state from earlier APPLOAD versions without fabricating
+  ;; missing detail metadata. Reload Excel once to populate that metadata.
+  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400"))
+    (if (not (assoc (car entry) *csad-state*)) (csad:put (car entry) (cdr entry))))
   (setq action 1)
   (while (and action (/= action 0))
     (setq action (csad:dialog))
@@ -295,5 +311,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair UI loaded. Run CSA_STAIR_DRAWING.")
+(princ "\nCSA Stair concrete-details v2 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

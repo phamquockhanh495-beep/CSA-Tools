@@ -28,6 +28,8 @@ Vui lòng gửi ảnh kèm tên DimStyle, hệ số block, phiên bản AutoCAD 
 
 Kết quả người dùng đã gửi: tài nguyên được tìm thấy, mẫu với `GB 25` hiển thị dimension 3000 và các giá trị tag. Hình chốt sau cùng thay thế scale cao độ 0.35 trước đó bằng **0.25**, mặt cắt **0.0075**, số hiệu thép **0.35**; ghi chú thép giữ **1.0**. Chưa áp dụng quy luật scale theo tỷ lệ bản vẽ. Đặc biệt, thông báo `findfile` không tìm thấy Arial/VNI trên search path không chứng minh Windows chưa cài font đó.
 
+Bản concrete-details v2 đọc lại scale tham chiếu sau `InsertBlock` và biến đổi đồng đều nếu cần để đạt đúng Scale X/Y/Z đã chốt. Cách này xử lý trường hợp block Inches bị bù đơn vị thành khoảng 0.0003 khi yêu cầu 0.0075. Không sửa đơn vị block hay biến `INSUNITS`; kiểm tra lại bằng Properties của block mới.
+
 ## Giới hạn và hành vi
 
 - Đây là kiểm tra tài nguyên, **chưa phải bản vẽ cầu thang hoặc thiết kế cốt thép**.
