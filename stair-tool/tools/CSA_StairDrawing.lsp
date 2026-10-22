@@ -381,8 +381,44 @@
       (csad:center prefix (csast:p base (+ (- x (/ total 2.0)) (/ pw 2.0)) y))
       (csad:center symbol (csast:p base (- (+ x (/ total 2.0)) (/ sw 2.0)) y)))))
 
-;;; Stage 1: longitudinal reinforcement centreline draft from Excel BJ28:BJ41.
-;;; Straight horizontal legs only. No automatic hooks, laps or fabrication table.
+;;; Step data: U28 (lower count), AI23 (flight count), AV21 (riser),
+;;; Z23/Z24 (upper/lower landing bars), Z25/Z26 (upper/lower landing dots).
+(defun csad:steps-error (raw options / issue low flight riser)
+  (if (or (/= (length raw) 24) (/= (length options) 7))
+    (setq issue "Reload Excel for U28/AI23/AV21 step parameters.")
+    (progn
+      (setq low (nth 0 options) flight (nth 1 options) riser (nth 2 options))
+      (if (not (and (numberp low) (numberp flight) (numberp riser)
+                    (>= low 0) (> flight 0) (> riser 0)
+                    (= low (fix low)) (= flight (fix flight))))
+        (setq issue "Step counts must be integers (U28 >= 0, AI23 > 0) and AV21 must be positive.")
+        (if (or (> (abs (- (* (+ low flight) riser) (- (cadr (nth 4 raw)) (cadar raw)))) 0.5)
+                (> (abs (- (* low riser) (- (cadr (nth 2 raw)) (cadr (nth 1 raw))))) 0.5)
+                (> (abs (- riser (- (cadr (nth 4 raw)) (cadr (nth 3 raw))))) 0.5))
+          (setq issue "Step counts/riser do not match the concrete. Recalculate Excel and reload.")))))
+  issue)
+
+(defun csad:step-labels (raw options gap / a b span dx dy mid result)
+  (setq a (nth 2 raw) b (nth 3 raw) span (distance a b)
+        dx (/ (- (car b) (car a)) span) dy (/ (- (cadr b) (cadr a)) span)
+        mid (csad:mid a b)
+        result (list (list (strcat (itoa (fix (nth 1 options))) " BAC")
+          (list (- (car mid) (* dy gap)) (+ (cadr mid) (* dx gap))))))
+  (if (> (nth 0 options) 0)
+    (setq result (append result (list (list (strcat (itoa (fix (nth 0 options))) " BAC")
+      (list (- (car a) (* 1.5 gap)) (+ (cadr a) gap)))))))
+  result)
+
+(defun csad:draw-steps (space base raw options gap height preview / item object)
+  (foreach item (csad:step-labels raw options gap)
+    (setq object (csast:text space (car item)
+      (csast:p base (car (cadr item)) (cadr (cadr item))) (* 1.5 height)
+      (if preview "CSA-PREVIEW" "10-GB-Text") "01-GB-Arial"))
+    (csad:center object (csast:p base (car (cadr item)) (cadr (cadr item))))))
+
+;;; Rebar detailing draft from Excel BJ28:BJ41 and Z23:Z26.
+;;; Main legs into landings and landing extensions into the slope use BJ38*d.
+;;; Existing concrete steps are respected; bend radii and fabrication are pending.
 ;;; Landing bars run in the section plane, as confirmed by the user.
 
 (defun csar:bar (value / s index diameter spacing)
@@ -429,7 +465,7 @@
   (list (list (- leftx leg) lowy) (list leftx lowy) a b
         (list rightx highy) (list (+ rightx leg) highy)))
 
-(defun csar:landingpath (raw cover diameter upper top / radius leftx rightx y)
+(defun csar:landingline (raw cover diameter upper top / radius leftx rightx y)
   (setq radius (+ cover (/ diameter 2.0)))
   (if upper
     (setq leftx (+ (car (nth 4 raw)) radius) rightx (- (car (nth 5 raw)) radius)
@@ -438,6 +474,80 @@
           rightx (- (car (nth (if top 1 15) raw)) radius)
           y (if top (- (cadar raw) radius) (+ (cadr (nth 20 raw)) radius))))
   (list (list leftx y) (list rightx y)))
+
+(defun csar:advance (a b amount / span)
+  (setq span (distance a b))
+  (list (+ (car a) (* amount (/ (- (car b) (car a)) span)))
+        (+ (cadr a) (* amount (/ (- (cadr b) (cadr a)) span)))))
+
+(defun csar:landingpath (raw cover diameter anchor-d upper top / path edge bend knee endpoint)
+  ;; Follow the same layer through the concrete step, then anchor BJ38*d
+  ;; along the incline. The vertical transition is not counted as this length.
+  (setq path (csar:mainpath raw cover diameter anchor-d top)
+        edge (csar:landingline raw cover diameter upper top))
+  (if upper
+    (setq edge (cadr edge) bend (nth 4 path) knee (nth 3 path)
+          endpoint (csar:advance knee (nth 2 path) (* diameter anchor-d)))
+    (setq edge (car edge) bend (nth 1 path) knee (nth 2 path)
+          endpoint (csar:advance knee (nth 3 path) (* diameter anchor-d))))
+  (list edge bend knee endpoint))
+
+(defun csar:flag (value / s)
+  (cond ((numberp value) (cond ((= value 1) 1) ((= value 0) 0)))
+        ((= (type value) 'STR)
+          (setq s (strcase (vl-string-trim " " value)))
+          (cond ((member s '("YES" "Y" "TRUE" "1")) 1)
+                ((member s '("NO" "N" "FALSE" "0")) 0)))))
+
+(defun csar:stations (a b spacing / span count margin index result factor)
+  ;; Center the exact-spacing grid, leaving equal end margins.
+  (setq span (distance a b) count (fix (/ span spacing))
+        margin (/ (- span (* count spacing)) 2.0) index 0)
+  (while (<= index count)
+    (setq factor (/ (+ margin (* index spacing)) span)
+          result (cons (list (+ (car a) (* factor (- (car b) (car a))))
+                             (+ (cadr a) (* factor (- (cadr b) (cadr a))))) result)
+          index (1+ index)))
+  (reverse result))
+
+(defun csar:distribution-line (raw cover main-d diameter top / line radius dx dy span)
+  ;; Transverse bars lie inside the longitudinal bars, not on the same axis.
+  (setq radius (+ cover (/ diameter 2.0)))
+  (if top
+    (setq line (csar:offset (nth 2 raw) (nth 3 raw) (- 0.0 (+ radius main-d))))
+    (setq line (csar:offset (nth 14 raw) (nth 13 raw) (+ radius main-d))))
+  (setq span (distance (car line) (cadr line))
+        dx (/ (- (caadr line) (caar line)) span)
+        dy (/ (- (cadadr line) (cadar line)) span))
+  (list (list (+ (caar line) (* radius dx)) (+ (cadar line) (* radius dy)))
+        (list (- (caadr line) (* radius dx)) (- (cadadr line) (* radius dy)))))
+
+(defun csar:landing-distribution-line (raw cover main-d diameter upper top)
+  (csar:landingline raw (+ cover main-d) diameter upper top))
+
+(defun csar:point-clearance (point polygon / edges result)
+  (setq edges (append polygon (list (car polygon))) result 1.0e20)
+  (if (not (csar:inside point polygon)) 0.0
+    (progn
+      (while (cdr edges)
+        (setq result (min result (csar:point-segment-distance point (car edges) (cadr edges)))
+              edges (cdr edges)))
+      result)))
+
+(defun csar:distribution-specs (raw data options / specs top side main bar line)
+  ;; Each item: region, top flag, sampling line; same BJ36 diameter/spacing.
+  (setq bar (csar:bar (nth 8 data)))
+  (foreach top (if (= (csar:layers data) 2) (list nil T) (list nil))
+    (setq main (csar:bar (nth (if top 7 6) data))
+          line (csar:distribution-line raw (car data) (car main) (car bar) top)
+          specs (cons (list "FLIGHT" top line) specs))
+    (foreach side (list nil T)
+      (if (= 1 (csar:flag (nth (if side 5 6) options)))
+        (progn
+          (setq main (csar:bar (nth (if side 5 4) data))
+                line (csar:landing-distribution-line raw (car data) (car main) (car bar) side top)
+                specs (cons (list (if side "UPPER" "LOWER") top line) specs))))))
+  (reverse specs))
 
 (defun csar:point-segment-distance (p a b / q factor dx dy denominator)
   (setq dx (- (car b) (car a)) dy (- (cadr b) (cadr a))
@@ -493,15 +603,17 @@
     (cond ((= (substr (vl-string-trim " " mode) 1 1) "1") 1)
           ((= (substr (vl-string-trim " " mode) 1 1) "2") 2))))
 
-(defun csar:error (raw concrete data / issue cover bottom top lower upper layers value path radius firstmark side bar)
-  ;; Data order: cover, flightWidth, landingPosition, landingWidth,
-  ;; landingLow, landingHigh, mainBottom, mainTop, distribution,
-  ;; layerMode, anchorD, firstMark, memberCount, draftingMode.
+(defun csar:error (raw concrete data options / issue cover bottom top layers value path radius firstmark side bar spec specs line other)
   (setq issue (csad:detail-error raw concrete))
   (if (not issue)
-    (if (/= (length data) 14) (setq issue "Reload Excel for reinforcement parameters BJ28:BJ41.")
-      (progn
+    (cond
+      ((/= (length data) 14) (setq issue "Reload Excel for reinforcement parameters BJ28:BJ41."))
+      ((/= (length options) 7) (setq issue "Reload Excel for step counts and Z23:Z26 switches."))
+      (T
         (setq cover (nth 0 data) layers (csar:layers data) firstmark (nth 11 data))
+        (foreach value '(3 4 5 6)
+          (if (null (csar:flag (nth value options)))
+            (setq issue "Z23:Z26 must be Yes/No (landing bars and transverse dots).")))
         (foreach value (list cover (nth 1 data) (nth 3 data) (nth 10 data) firstmark (nth 12 data))
           (if (or (not (numberp value)) (and (numberp value) (<= value 0.0)))
             (setq issue "Cover, widths, anchor d, first mark and member count must be positive.")))
@@ -518,7 +630,7 @@
               (setq radius (+ cover (/ (car (if value top bottom)) 2.0))
                     path (csar:mainpath raw cover (car (if value top bottom)) (nth 10 data) value))
               (if (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01))
-                (setq issue "Straight rebar legs do not fit the concrete/cover. Check anchorage and supports; no bar was shortened automatically.")))
+                (setq issue "Main bar legs do not fit concrete/cover; no anchor was shortened automatically.")))
             (if (and (= layers 2)
                      (< (csar:path-distance
                           (csar:mainpath raw cover (car bottom) (nth 10 data) nil)
@@ -526,16 +638,31 @@
                         (/ (+ (car bottom) (car top)) 2.0)))
               (setq issue "Top and bottom bars overlap. Check cover, diameters and support dimensions."))
             (foreach side (list nil T)
-              (setq bar (csar:bar (nth (if side 5 4) data)) radius (+ cover (/ (car bar) 2.0)))
-              (foreach value (if (= layers 2) (list nil T) (list nil))
-                (setq path (csar:landingpath raw cover (car bar) side value))
-                (if (or (<= (car (cadr path)) (caar path))
-                        (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01)))
-                  (setq issue "Landing bars do not fit the concrete/cover; check BJ32/BJ33 and the slab geometry.")))
-              (if (and (= layers 2)
-                       (< (csar:path-distance (csar:landingpath raw cover (car bar) side nil)
-                                             (csar:landingpath raw cover (car bar) side T)) (car bar)))
-                (setq issue "Landing reinforcement layers overlap; check cover and diameter."))))))))
+              (if (= 1 (csar:flag (nth (if side 3 4) options)))
+                (progn
+                  (setq bar (csar:bar (nth (if side 5 4) data)) radius (+ cover (/ (car bar) 2.0)))
+                  (foreach value (if (= layers 2) (list nil T) (list nil))
+                    (setq path (csar:landingpath raw cover (car bar) (nth 10 data) side value))
+                    (if (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01))
+                      (setq issue "Landing bars do not fit concrete/cover. Check BJ32/BJ33 and anchorage.")))
+                  (if (and (= layers 2)
+                           (< (csar:path-distance
+                                (csar:landingpath raw cover (car bar) (nth 10 data) side nil)
+                                (csar:landingpath raw cover (car bar) (nth 10 data) side T)) (car bar)))
+                    (setq issue "Landing reinforcement layers overlap; check cover and diameter.")))))
+            (if (not issue)
+              (progn
+                (setq bar (csar:bar (nth 8 data)) specs (csar:distribution-specs raw data options))
+                (foreach spec specs
+                  (setq line (nth 2 spec) radius (+ cover (/ (car bar) 2.0)))
+                  (if (or (<= (distance (car line) (cadr line)) 0.001)
+                          (> (/ (distance (car line) (cadr line)) (cadr bar)) 2000)
+                          (< (csar:path-clearance line (csad:cleanpoints raw)) (- radius 0.01)))
+                    (setq issue "Transverse bars do not fit cover, or exceed 2000 dots per region/layer. Check BJ36 and slab geometry."))
+                  (foreach other specs
+                    (if (and (= (car spec) (car other)) (not (eq (cadr spec) (cadr other)))
+                             (< (csar:path-distance line (nth 2 other)) (car bar)))
+                      (setq issue "Top/bottom transverse bars overlap; check cover, diameters and slab thickness.")))))))))))
   issue)
 
 (defun csar:polyline (space base points layer / coords p array object)
@@ -548,51 +675,93 @@
   (vla-put-Closed object :vlax-false)
   object)
 
-(defun csar:render (space base raw data preview gap height / cover layers top bar path mark a b side
-                                                        midpoint normal note point minx miny text)
+(defun csar:dot (space base point diameter layer / object)
+  ;; Two semicircular wide arcs make a filled disk, with actual outside diameter d.
+  ;; No hatch, block, POINT display mode, or global variable is required.
+  (setq object (csar:polyline space base
+    (list (list (- (car point) (/ diameter 4.0)) (cadr point))
+          (list (+ (car point) (/ diameter 4.0)) (cadr point))) layer))
+  (vla-put-Closed object :vlax-true)
+  (vla-SetBulge object 0 1.0) (vla-SetBulge object 1 1.0)
+  (vla-put-ConstantWidth object (/ diameter 2.0))
+  object)
+
+(defun csar:leader (space base points layer dotted height diameter style / coords point array object)
+  (foreach point points
+    (setq coords (append coords (csast:p base (car point) (cadr point)))))
+  (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
+  (vlax-safearray-fill array coords)
+  ;; LEADER with no annotation: the CSA attributed block remains independent.
+  (setq object (csast:track (vla-AddLeader space array nil 1))) ; acLineWithArrow
+  (vla-put-Layer object layer) (vla-put-StyleName object style)
+  (vla-put-ScaleFactor object 1.0)
+  ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
+  (vla-put-ArrowheadType object (if dotted 12 4))
+  (vla-put-ArrowheadSize object (if dotted (max (* 2.0 diameter) (* 0.6 height)) (* 0.8 height)))
+  (vla-Update object)
+  object)
+
+(defun csar:note (space base target point bar mark dotted preview height / layer note low high attach elbow)
+  (setq layer (if preview "CSA-PREVIEW" "20-GB-GC")
+        note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
+          layer 1.0 (list (cons "SH" (itoa mark)) (cons "DK-KC" (strcat "%%C" (nth 2 bar))))))
+  (csad:center note (csast:p base (car point) (cadr point)))
+  (vla-GetBoundingBox note 'low 'high)
+  (setq low (vlax-safearray->list low) high (vlax-safearray->list high)
+        attach (list (- (if (< (car target) (car point)) (car low) (car high)) (car base)) (cadr point))
+        elbow (list (+ (car attach) (* (if (< (car target) (car point)) -2.0 2.0) height)) (cadr attach)))
+  (csar:leader space base (list target elbow attach) layer dotted height (car bar) (csad:get 'dimstyle))
+  note)
+
+(defun csar:render (space base raw data options preview gap height / cover layers top bar path mark a b side
+                                                        midpoint normal point minx miny text spec line dots dot)
   (setq cover (nth 0 data) layers (csar:layers data) mark (fix (nth 11 data))
         minx (apply 'min (mapcar 'car raw)) miny (apply 'min (mapcar 'cadr raw)))
   (foreach top (if (= layers 2) (list nil T) (list nil))
     (setq bar (csar:bar (nth (if top 7 6) data))
           path (csar:mainpath raw cover (car bar) (nth 10 data) top)
-          midpoint (csad:mid (nth 2 path) (nth 3 path))
           a (nth 2 path) b (nth 3 path)
+          midpoint (csar:advance a b (* (if top 0.6 0.4) (distance a b)))
           normal (csar:offset a b (if top (* 2.0 gap) (- 0.0 (* 2.0 gap))))
-          point (csad:mid (car normal) (cadr normal)))
+          point (csar:advance (car normal) (cadr normal)
+                    (* (if top 0.6 0.4) (distance a b))))
     (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
-    (csast:line space (csast:p base (car midpoint) (cadr midpoint))
-      (csast:p base (car point) (cadr point)) (if preview "CSA-PREVIEW" "20-GB-GC"))
-    (setq note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
-                 (if preview "CSA-PREVIEW" "20-GB-GC") 1.0
-                 (list (cons "SH" (itoa mark)) (cons "DK-KC" (nth 2 bar)))))
-    (csad:center note (csast:p base (car point) (+ (cadr point) height)))
+    (csar:note space base midpoint point bar mark nil preview height)
     (setq mark (1+ mark)))
-  ;; Landing bars: in the section plane, one/two layers from BJ37.
   (foreach side (list nil T)
-    (setq bar (csar:bar (nth (if side 5 4) data)))
-    (foreach top (if (= layers 2) (list nil T) (list nil))
-      (setq path (csar:landingpath raw cover (car bar) side top)
-            midpoint (csad:mid (car path) (cadr path))
-            point (list (car midpoint)
-              (+ (if side (cadr (nth 4 raw)) (cadar raw)) (* (if top 3.0 2.0) gap))))
-      (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
-      (csast:line space (csast:p base (car midpoint) (cadr midpoint))
-        (csast:p base (car point) (cadr point)) (if preview "CSA-PREVIEW" "20-GB-GC"))
-      (setq note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
-                   (if preview "CSA-PREVIEW" "20-GB-GC") 1.0
-                   (list (cons "SH" (itoa mark)) (cons "DK-KC" (nth 2 bar)))))
-      (csad:center note (csast:p base (car point) (+ (cadr point) height)))
-      (setq mark (1+ mark))))
-  (setq text (strcat "REBAR CENTRELINE DRAFT / COVER=" (rtos cover 2 0)
-    " / STRAIGHT LEGS " (rtos (nth 10 data) 2 0) "d / CHECK BENDS AND ANCHORAGE"))
+    (if (= 1 (csar:flag (nth (if side 3 4) options)))
+      (progn
+        (setq bar (csar:bar (nth (if side 5 4) data)))
+        (foreach top (if (= layers 2) (list nil T) (list nil))
+          (setq path (csar:landingpath raw cover (car bar) (nth 10 data) side top)
+                midpoint (csad:mid (car path) (cadr path))
+                point (list (car midpoint)
+                  (+ (if side (cadr (nth 4 raw)) (cadar raw)) (* (if top 2.0 1.0) gap))))
+          (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
+          (csar:note space base midpoint point bar mark nil preview height)
+          (setq mark (1+ mark))))))
+  ;; One mark per distribution region/layer, every dot has the actual BJ36 diameter.
+  (setq bar (csar:bar (nth 8 data)))
+  (foreach spec (csar:distribution-specs raw data options)
+    (setq line (nth 2 spec) top (nth 1 spec)
+          dots (csar:stations (car line) (cadr line) (cadr bar))
+          midpoint (nth (fix (/ (length dots) 2.0)) dots))
+    (foreach dot dots (csar:dot space base dot (car bar) (if preview "CSA-PREVIEW" "18-GB-Reinf")))
+    (if (= (car spec) "FLIGHT")
+      (progn
+        (setq normal (csar:offset (car line) (cadr line) (if top (* 3.0 gap) (- 0.0 (* 3.0 gap))))
+              point (csad:mid (car normal) (cadr normal))))
+      (setq point (list (car midpoint)
+        (- (if (= (car spec) "UPPER") (cadr (nth 8 raw)) (cadr (nth 20 raw)))
+           (* (if top 1.0 2.0) gap)))))
+    (csar:note space base midpoint point bar mark T preview height)
+    (setq mark (1+ mark)))
+  (setq text (strcat "REBAR DRAFT / COVER=" (rtos cover 2 0)
+    " / MAIN LEGS AND LANDING SLOPE EXTENSIONS=" (rtos (nth 10 data) 2 0) "d"))
   (csast:text space text (csast:p base minx (- miny (* 5.0 gap))) height
     (if preview "CSA-PREVIEW" "20-GB-GC") "01-GB-Arial")
-  (csast:text space "LANDING BARS IN SECTION PLANE / CHECK SUPPORT ANCHORAGE AND PROJECTED LAPS"
+  (csast:text space "CHECK PROJECTED LAPS / BEND RADII AND FABRICATION SCHEDULE NOT GENERATED"
     (csast:p base minx (- miny (* 5.0 gap) (* 2.0 height))) height
-    (if preview "CSA-PREVIEW" "20-GB-GC") "01-GB-Arial")
-  (csast:text space (strcat "DISTRIBUTION INPUT ONLY: " (nth 2 (csar:bar (nth 8 data)))
-    " / BENDS, HOOKS AND SCHEDULE NOT GENERATED")
-    (csast:p base minx (- miny (* 5.0 gap) (* 4.0 height))) height
     (if preview "CSA-PREVIEW" "20-GB-GC") "01-GB-Arial"))
 
 ;;; Bundled after the standards helpers by tools/build_stair_bundle.py.
@@ -638,7 +807,7 @@
   (/ (abs area) 2.0))
 
 (defun csad:loadexcel (path / *error* excel books book sheets sheet cells row id x y candidate ref
-                           points rawpoints metadata rebar-data rawcount rise bottom title firstlevel high found)
+                           points rawpoints metadata rebar-data section-options rawcount rise bottom title firstlevel high found)
   (defun *error* (msg)
     (foreach ref (list cells sheet sheets book books excel)
       (if (= (type ref) 'VLA-OBJECT) (vl-catch-all-apply 'vlax-release-object (list ref))))
@@ -681,7 +850,11 @@
   (setq rebar-data nil row 28)
   (while (<= row 41)
     (setq rebar-data (append rebar-data (list (csad:cell cells row 62))) row (1+ row)))
+  (setq section-options (list (csad:cell cells 28 21) (csad:cell cells 23 35)
+    (csad:cell cells 21 48) (csad:cell cells 23 26) (csad:cell cells 24 26)
+    (csad:cell cells 25 26) (csad:cell cells 26 26)))
   (csad:put 'rebar-data rebar-data)
+  (csad:put 'section-options section-options)
   (csad:put 'rawpoints rawpoints)
   (csad:put 'concrete-parameters metadata)
   (csad:put 'points points)
@@ -696,7 +869,7 @@
   T)
 
 (defun csad:capture (/ key)
-  (foreach key '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "rebar" "titleheight" "dimgap")
+  (foreach key '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "steps" "rebar" "titleheight" "dimgap")
     (csad:put (read key) (get_tile key)))
   (csad:put 'dimstyle (nth (atoi (get_tile "dimstyle")) csad-styles)))
 
@@ -732,7 +905,8 @@
           ": toggle { key = \"details\"; label = \"Concrete details\"; }"
           ": toggle { key = \"levels\"; label = \"Elevations\"; }"
           ": toggle { key = \"symbol\"; label = \"Section symbol\"; } }"
-          ": toggle { key = \"rebar\"; label = \"Rebar draft - longitudinal straight legs and landing bars in section plane\"; }"
+          ": toggle { key = \"steps\"; label = \"Step counts from Excel (U28 / AI23)\"; }"
+          ": toggle { key = \"rebar\"; label = \"Rebar draft - bent landing anchors and transverse dots\"; }"
           ": text { key = \"status\"; width = 80; }"
           ": row { : button { key = \"preview\"; label = \"Preview\"; }"
           ": button { key = \"draw\"; label = \"Draw Section\"; }"
@@ -745,7 +919,7 @@
       (if (and (> id 0) (new_dialog "csad_ui" id))
         (progn
           (set_tile "path" (cond ((csad:get 'path)) (T "Open workbook in Excel, then Load Excel.")))
-          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "rebar" "status" "titleheight" "dimgap")
+          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "steps" "rebar" "status" "titleheight" "dimgap")
             (set_tile name (csad:get (read name))))
           (start_list "dimstyle") (foreach name csad-styles (add_list name)) (end_list)
           (setq index (vl-position (csad:get 'dimstyle) csad-styles))
@@ -814,7 +988,10 @@
     (if (setq spec (csad:detail-error (csad:get 'rawpoints) (csad:get 'concrete-parameters)))
       (setq issue spec)))
   (if (= "1" (csad:get 'rebar))
-    (if (setq spec (csar:error (csad:get 'rawpoints) (csad:get 'concrete-parameters) (csad:get 'rebar-data)))
+    (if (setq spec (csar:error (csad:get 'rawpoints) (csad:get 'concrete-parameters) (csad:get 'rebar-data) (csad:get 'section-options)))
+      (setq issue spec)))
+  (if (= "1" (csad:get 'steps))
+    (if (setq spec (csad:steps-error (csad:get 'rawpoints) (csad:get 'section-options)))
       (setq issue spec)))
   (if (or (null bottom) (null top) (<= top bottom))
     (setq issue "Enter valid elevations with top above bottom."))
@@ -890,8 +1067,11 @@
               (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext bottom))))
             (csast:insert space "Cao do" (csast:p base (car toppt) (cadr toppt))
               (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext top))))))
+        (if (= "1" (csad:get 'steps))
+          (csad:draw-steps space base (csad:get 'rawpoints) (csad:get 'section-options) gap height preview))
         (if (= "1" (csad:get 'rebar))
-          (csar:render space base (csad:get 'rawpoints) (csad:get 'rebar-data) preview gap height))
+          (csar:render space base (csad:get 'rawpoints) (csad:get 'rebar-data)
+            (csad:get 'section-options) preview gap height))
         ;; Replace only previously tagged previews after new geometry succeeds.
         (foreach e old (if (not (entdel e)) (progn (princ "\nCannot delete old preview.") (exit))))
         (vla-Regen doc 0) (vla-EndUndoMark doc) (setq started nil)
@@ -907,7 +1087,7 @@
       (status . "Load current Excel coordinates to begin."))))
   ;; Migrate cached state from earlier APPLOAD versions without fabricating
   ;; missing detail metadata. Reload Excel once to populate that metadata.
-  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400") (rebar . "0"))
+  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400") (rebar . "0") (steps . "1"))
     (if (not (assoc (car entry) *csad-state*)) (csad:put (car entry) (cdr entry))))
   (setq action 1)
   (while (and action (/= action 0))
@@ -922,5 +1102,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-draft v3 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v4 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

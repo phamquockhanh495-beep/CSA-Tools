@@ -139,3 +139,38 @@
             total (+ pw sw (* 0.5 titleheight)))
       (csad:center prefix (csast:p base (+ (- x (/ total 2.0)) (/ pw 2.0)) y))
       (csad:center symbol (csast:p base (- (+ x (/ total 2.0)) (/ sw 2.0)) y)))))
+
+;;; Step data: U28 (lower count), AI23 (flight count), AV21 (riser),
+;;; Z23/Z24 (upper/lower landing bars), Z25/Z26 (upper/lower landing dots).
+(defun csad:steps-error (raw options / issue low flight riser)
+  (if (or (/= (length raw) 24) (/= (length options) 7))
+    (setq issue "Reload Excel for U28/AI23/AV21 step parameters.")
+    (progn
+      (setq low (nth 0 options) flight (nth 1 options) riser (nth 2 options))
+      (if (not (and (numberp low) (numberp flight) (numberp riser)
+                    (>= low 0) (> flight 0) (> riser 0)
+                    (= low (fix low)) (= flight (fix flight))))
+        (setq issue "Step counts must be integers (U28 >= 0, AI23 > 0) and AV21 must be positive.")
+        (if (or (> (abs (- (* (+ low flight) riser) (- (cadr (nth 4 raw)) (cadar raw)))) 0.5)
+                (> (abs (- (* low riser) (- (cadr (nth 2 raw)) (cadr (nth 1 raw))))) 0.5)
+                (> (abs (- riser (- (cadr (nth 4 raw)) (cadr (nth 3 raw))))) 0.5))
+          (setq issue "Step counts/riser do not match the concrete. Recalculate Excel and reload.")))))
+  issue)
+
+(defun csad:step-labels (raw options gap / a b span dx dy mid result)
+  (setq a (nth 2 raw) b (nth 3 raw) span (distance a b)
+        dx (/ (- (car b) (car a)) span) dy (/ (- (cadr b) (cadr a)) span)
+        mid (csad:mid a b)
+        result (list (list (strcat (itoa (fix (nth 1 options))) " BAC")
+          (list (- (car mid) (* dy gap)) (+ (cadr mid) (* dx gap))))))
+  (if (> (nth 0 options) 0)
+    (setq result (append result (list (list (strcat (itoa (fix (nth 0 options))) " BAC")
+      (list (- (car a) (* 1.5 gap)) (+ (cadr a) gap)))))))
+  result)
+
+(defun csad:draw-steps (space base raw options gap height preview / item object)
+  (foreach item (csad:step-labels raw options gap)
+    (setq object (csast:text space (car item)
+      (csast:p base (car (cadr item)) (cadr (cadr item))) (* 1.5 height)
+      (if preview "CSA-PREVIEW" "10-GB-Text") "01-GB-Arial"))
+    (csad:center object (csast:p base (car (cadr item)) (cadr (cadr item))))))

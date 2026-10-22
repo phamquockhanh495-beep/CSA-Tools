@@ -9,7 +9,7 @@ Tải `CSA_StairDrawing.lsp` tại thư mục này. File đã gộp toàn bộ h
 3. `APPLOAD` file **`CSA_StairDrawing.lsp`**.
 4. Gõ **`CSA_STAIR_DRAWING`**.
 5. Bấm **Load / Reload Excel**, chọn đúng file `.xlsm` đang mở. Trạng thái báo số dòng và số đỉnh sau khi loại các điểm trùng liên tiếp.
-6. Chọn DimStyle **GB 25**, kiểm tra tên cầu thang, mã mặt cắt và hai cao độ. Với dữ liệu trong repository: cao độ dưới **+0.050 m**, trên **+2.250 m**. Bật **Concrete details**; thử **Title height = 200 mm**, **Dimension spacing = 400 mm**.
+6. Chọn DimStyle **GB 25**, kiểm tra tên cầu thang, mã mặt cắt và hai cao độ. Với dữ liệu trong repository: cao độ dưới **+0.050 m**, trên **+2.250 m**. Bật **Concrete details** và **Step counts from Excel**; thử **Title height = 200 mm**, **Dimension spacing = 400 mm**.
 7. Bấm **Preview**, chọn điểm chèn trong vùng trống. Hộp thoại đóng để bạn có thể zoom/pan kiểm tra hình thật.
 8. Gõ lại **`CSA_STAIR_DRAWING`** để mở giao diện với dữ liệu đã nạp. Bấm **Draw Section**, chọn điểm chèn bản vẽ chính thức.
 9. Preview được xóa sau khi xuất thành công. Để chỉ xóa preview, mở lại giao diện và bấm **Clear Preview**.
@@ -68,7 +68,7 @@ Trong workbook hiện tại, tọa độ đầu là mốc sàn dưới; điểm 
 
 ### Dimension cấu tạo bê tông
 
-Bản v3 giữ riêng 24 điểm gốc theo STT trước khi loại trùng để nhận diện các chi tiết trong mẫu Excel. Với dữ liệu gốc, bật Concrete details sẽ tạo 15 dimension:
+Bản hiện tại giữ riêng 24 điểm gốc theo STT trước khi loại trùng để nhận diện các chi tiết trong mẫu Excel. Với dữ liệu gốc, bật Concrete details sẽ tạo 15 dimension:
 
 | Nhóm | Kích thước mẫu (mm) |
 |---|---|
@@ -83,7 +83,7 @@ Bản v3 giữ riêng 24 điểm gốc theo STT trước khi loại trùng để
 
 Các số là số đo hình học, không ghi đè text dimension. Dimension ngang/đứng dùng `AddDimRotated`; chiều dày bản xiên dùng `AddDimAligned` sau khi chiếu vuông góc. Đoạn có kích thước bằng 0 được bỏ qua, không tạo dim rỗng. Khi thông số Excel không khớp đường bao trong sai số 0.5 mm, hoặc hai biên xiên không song song, chương trình báo lỗi trước khi dựng hình mới. Tắt Concrete details nếu chỉ cần đường bao từ một workbook khác không theo hợp đồng 24 điểm này.
 
-Các giá trị bậc hiện là chênh cao hình học ở hai đầu bản xiên, chưa phải chi tiết bậc thang riêng lẻ. Phần bê tông không suy diễn thêm bậc riêng lẻ; tim thép được tính từ các thông số riêng theo phần hướng dẫn bên dưới.
+Các dim 314/157 là chênh cao hình học ở hai đầu bản xiên. Số bậc được ghi riêng từ U28/AI23; bản này chưa dựng đường răng cưa từng bậc trên biên bê tông.
 
 Excel được **kết nối vào phiên đang chạy**. Tiện ích không tạo/đóng Excel, không ghi ô, không tự bật macro hay tính lại workbook. Nếu có nhiều phiên Excel, hãy mở workbook trong phiên mà AutoCAD kết nối được; thông báo sẽ chỉ rõ nếu không tìm thấy file đang mở. Ô Excel lỗi, dữ liệu không hợp lệ hoặc đường bao suy biến sẽ bị từ chối trước khi thay dữ liệu đã nạp.
 
@@ -100,31 +100,55 @@ Gửi ảnh gồm giao diện sau Load Excel và mặt cắt sau Preview/Draw Se
 
 Nút **Plan (next phase)** được vô hiệu hóa: bảng tọa độ đang có là đường bao mặt cắt, chưa chứa dữ liệu mặt bằng 2 vế/3 vế. Đã có tùy chọn tim thép dọc và thép chiếu nghỉ ở giai đoạn kiểm tra, chưa có thống kê hoặc móc/uốn hoàn chỉnh. Không lấy các thanh mẫu ở tiện ích kiểm tra để thay cho thiết kế. Bản này chưa triển khai toàn bộ cầu thang 2/3 vế.
 
-## Bước tiếp theo: tim thép dọc và chiếu nghỉ v3
+## Bản rebar-detail v4: leader, số bậc, neo và thép chấm
 
-Sau APPLOAD bản mới, **Load / Reload Excel** để đọc thêm `BJ28:BJ41`, rồi bật **Rebar draft** và Preview. Tùy chọn mặc định tắt để phần bê tông đã nghiệm thu không tự xuất thêm thép. Người dùng đã xác nhận neo thẳng 30d theo Excel và thép chiếu nghỉ chạy trong mặt phẳng mặt cắt.
+Sau APPLOAD bản mới, **Load / Reload Excel** để đọc đủ thông số, bật **Step counts from Excel** và **Rebar draft**, rồi Preview tại vùng trống. Tùy chọn Rebar draft mặc định tắt. Bản v4 đã có các thay đổi theo ảnh phản hồi:
+
+- Ghi chú thanh trong mặt cắt dùng entity **LEADER**, đầu **Architectural tick**. Ghi chú thép chấm dùng **Dot blank**. Cả hai có đoạn ngang nối tới mép block ghi chú, lấy mép sau khi đã cập nhật bounding box. Arrowhead được đặt trực tiếp trên leader, không đổi DimStyle hiện có hoặc biến hệ thống DIM.
+- Số bậc lấy từ **AI23 = 12 bậc vế xiên**, **U28 = 2 bậc đầu** trong file mẫu. Nhãn hiển thị `12 BAC`, `2 BAC` để tương thích môi trường AutoLISP/font cũ. Không suy số bậc từ độ dài đoạn xiên hoặc tự tạo thêm đường bao bậc. Chiều cao một bậc AV21 được kiểm tra với tổng chênh cao và hai đầu đoạn xiên.
+- Thép chiếu nghỉ/chiếu tới bẻ theo lớp tương ứng, qua đoạn bê tông giật cấp rồi **kéo vào vế xiên 30d**. Người dùng đã xác nhận giữ 30d và theo biên bê tông hiện có; hình 3 chỉ là tham khảo hướng neo, không lấy kích thước từ ảnh. Chiều dài này được đo dọc đoạn xiên, không cộng đoạn đứng chuyển tiếp.
+- Thép cấu tạo BJ36 được vẽ thành **chấm tròn đặc**, thể hiện thanh vuông góc mặt cắt. Chấm có đường kính thật của thanh. Khoảng cách tim chấm đo dọc bản xiên hoặc bản chiếu nghỉ, lưới được căn giữa với hai đầu dư bằng nhau và giữ nguyên bước thép.
+
+### Nguồn thông số
 
 | Ô | Dữ liệu sử dụng |
 |---|---|
-| `BJ28` | Cover tới bề mặt ngoài thanh; tim thanh cách biên bằng cover + d/2 |
-| `BJ29`, `BJ31` | Bề rộng vế/chiếu nghỉ, được đọc nhưng chưa suy ra số thanh |
-| `BJ32`, `BJ33` | Thép chiếu nghỉ dưới/trên, dựng thanh ngang trong mặt phẳng mặt cắt |
+| `BJ28` | Cover tới bề mặt ngoài thanh; tim thép dọc cách biên cover + d/2 |
+| `BJ29`, `BJ31` | Bề rộng vế/chiếu nghỉ, chưa dùng để suy số thanh toàn bộ mặt bằng |
+| `BJ32`, `BJ33` | Thép chiếu nghỉ dưới/trên, thanh nằm trong mặt cắt và neo vào vế xiên |
 | `BJ34`, `BJ35` | Thép dọc dưới/trên, dạng `12a150` |
-| `BJ36` | Thép cấu tạo/phân bố, hiện ghi nhận bằng note đầu vào |
-| `BJ37` | 1 hoặc 2 lớp, áp dụng cho cả vế xiên và chiếu nghỉ; 1 lớp chỉ dựng lớp dưới |
-| `BJ38` | Chiều dài đoạn neo thẳng theo bội số d, ví dụ 30d = 360 mm với d12 |
-| `BJ39` | Số hiệu thanh bắt đầu; thứ tự vế xiên, chiếu nghỉ dưới, chiếu nghỉ trên; mỗi nhóm dưới rồi trên |
-| `BJ40`, `BJ41` | Số cấu kiện và kiểu triển khai, đọc để mở rộng sau; chưa lập thống kê |
+| `BJ36` | Đường kính/bước thép cấu tạo vuông góc mặt cắt, dạng `12a100` |
+| `BJ37` | 1 hoặc 2 lớp, áp dụng cho vế xiên và chiếu nghỉ; 1 lớp chỉ dựng lớp dưới |
+| `BJ38` | Hệ số neo theo d; dùng cho đoạn ngang của thép vế xiên và đoạn xiên của thép chiếu nghỉ |
+| `BJ39` | Số hiệu thanh bắt đầu, tăng liên tục cho các nhóm đang bật |
+| `BJ40`, `BJ41` | Số cấu kiện và kiểu triển khai, đọc để mở rộng; chưa lập thống kê |
+| `U28`, `AI23`, `AV21` | Số bậc đầu, số bậc vế xiên, chiều cao một bậc |
+| `Z23`, `Z24` | Yes/No: vẽ thép mặt cắt chiếu nghỉ trên/dưới |
+| `Z25`, `Z26` | Yes/No: vẽ chấm thép cấu tạo chiếu nghỉ trên/dưới |
 
-Bản này dựng một thanh đại diện cho mỗi lớp theo mặt cắt, không vẽ toàn bộ thanh theo chiều rộng vế. Tim thép được offset từ các biên xiên và bản, nối bằng các đoạn thẳng trong gối rồi đi ngang vào chiếu nghỉ. Mỗi đoạn ngang neo được đo từ góc chuyển hướng tim thanh, có chiều dài đúng `BJ38 × đường kính`; đây chưa phải kiểm tra chiều dài neo hiệu dụng theo tiêu chuẩn.
+Bật/tắt thanh chiếu nghỉ và bật/tắt chấm chiếu nghỉ là hai lựa chọn độc lập theo Excel. Thép cấu tạo trong vế xiên luôn đi cùng Rebar draft. BJ36 được dùng chung cho ba vùng vì workbook hiện chỉ có một đầu vào thép cấu tạo. Số lớp lấy từ BJ37.
 
-Hình học tim thanh có góc gãy để kiểm tra bố trí, chưa có bán kính uốn, móc, nối chồng hay chiều dài cắt gia công. Note **REBAR CENTRELINE DRAFT** luôn đi cùng hình. Không tự chọn đường kính, bước thép, bỏ lớp hoặc rút ngắn neo khi không đủ chỗ. Chương trình kiểm tra toàn bộ đoạn tim nằm trong bê tông với khoảng cách tới biên không nhỏ hơn cover + d/2, và kiểm tra hai lớp không đè lên nhau. Kiểm tra này không thay cho tính toán kết cấu hay kiểm tra khoảng cách tối thiểu theo tiêu chuẩn dự án.
+Chấm thép được đặt **vào phía trong thép dọc**: khoảng cách tim chấm tới biên bằng cover + đường kính thép dọc + nửa đường kính thép cấu tạo. Với chiếu nghỉ, đường kính thép dọc lấy từ BJ32/BJ33; với vế xiên lấy từ BJ34/BJ35. Chấm được tạo bằng polyline hai cung có bề rộng, không tạo hatch/block cho từng chấm và không đổi PDMODE. Nếu DWG tắt FILLMODE, phần tô của wide polyline có thể không hiển thị đầy đủ; đây là thiết lập hiển thị của bản vẽ.
 
-Thép và ghi chú dùng `18-GB-Reinf`, `20-GB-GC`, block `CSA_Sohieu-KCthep` với tag `SH`, `DK-KC`; preview vẫn dùng hệ đánh dấu riêng. Có thể xuất cùng mặt cắt bằng Draw Section, nhưng trạng thái draft vẫn được ghi rõ.
+### Phạm vi hình học thép
 
-Thép chiếu nghỉ là các thanh thẳng đại diện nằm ngang, dừng cách biên bê tông theo cover + d/2, dùng đường kính/bước thép riêng từ BJ32/BJ33. Với hai lớp, mặc định có sáu tim thanh đại diện: hai vế xiên, hai chiếu nghỉ dưới và hai chiếu nghỉ trên. Các đoạn neo của vế xiên có thể trùng hình chiếu với thanh chiếu nghỉ; bản này chưa xác định vị trí theo chiều rộng, nối chồng hoặc cấu tạo neo đầu thanh chiếu nghỉ. Ghi chú trên hình nhắc kiểm tra các phần đó. Thép phân bố BJ36 vẫn chỉ được ghi nhận bằng note `DISTRIBUTION INPUT ONLY`, chưa dựng hình.
+Thép vế xiên vẫn là một tim thanh đại diện mỗi lớp, có đoạn ngang neo vào hai chiếu nghỉ dài đúng BJ38 × đường kính. Thép chiếu nghỉ có đoạn ngang tới gần biên, đoạn chuyển tiếp qua phần bê tông giật cấp, rồi đoạn xiên neo vào vế thang cũng dài BJ38 × đường kính. Với d12/30d, mỗi đoạn neo tương ứng dài **360 mm**.
 
-Khi gửi ảnh vòng này, nên có cả Preview bê tông sau khi bỏ dim X và một Preview bật Rebar draft. Với dữ liệu mẫu, d12/neo30d cho hai đoạn ngang neo của mỗi thanh vế xiên dài 360 mm; cover lấy trực tiếp từ workbook đang mở (không khóa cứng 15 hoặc 25).
+Tim thanh được nối bằng các đoạn thẳng để kiểm tra bố trí, chưa thêm bán kính uốn hoặc suy ra chiều dài cắt gia công. Các đoạn thép vế xiên và chiếu nghỉ có thể trùng hình chiếu; vị trí theo chiều rộng, nối chồng và khoảng cách thanh tại nút chưa được giải quyết bằng bản vẽ 2D này. Ghi chú `REBAR DRAFT` đi cùng hình.
+
+Chương trình kiểm tra đường thanh/chấm nằm trong bê tông, đủ cover và hai lớp cùng loại không đè lên nhau. Nếu neo không đủ chỗ, báo lỗi và giữ preview trước, không tự rút ngắn thanh. Nếu lớp thép cấu tạo không đủ chỗ giữa các lớp thép dọc, cần sửa thông số; không tự giảm đường kính, bỏ lớp hoặc đổi cover. Giới hạn 2000 chấm cho mỗi vùng/lớp tránh đầu vào bước thép quá nhỏ làm treo AutoCAD. Các kiểm tra này chưa tính khoảng cách tối thiểu theo tiêu chuẩn thiết kế.
+
+Thép dùng `18-GB-Reinf`, leader/ghi chú dùng `20-GB-GC`. Block `CSA_Sohieu-KCthep` giữ scale 1.0 với tag `SH`, `DK-KC`; text đường kính dùng mã `%%C`. Preview dùng hệ đánh dấu riêng và layer `CSA-PREVIEW` như trước.
+
+### Kiểm tra trong AutoCAD
+
+1. APPLOAD file mới, command line phải báo **rebar-detail v4**. Load / Reload Excel một lần.
+2. Bật Step counts from Excel và Rebar draft, Preview ở vùng trống. File mẫu có `12 BAC` và `2 BAC`.
+3. Chọn leader trong Properties: thanh mặt cắt là Architectural tick, chấm thép là Dot blank; có nhánh ngang tới block số hiệu. Không còn dùng LINE đơn thay cho leader.
+4. Kiểm tra chấm theo BJ36: mặc định d12, bước tim 100 mm; đo dọc bản xiên. Kiểm tra cả hai lớp và từng chiếu nghỉ đang bật.
+5. Zoom vào hai nút: thanh chiếu nghỉ phải đi tiếp vào vế xiên, không kết thúc ngang cụt như v3. Đo đoạn xiên neo d12/30d được 360 mm; đoạn đứng chuyển tiếp không tính vào 360 này.
+6. Thử đổi Yes/No Z23:Z26 trong Excel, Load / Reload rồi Preview; số hiệu chỉ gán cho nhóm được vẽ. Đổi cover theo workbook, không khóa cứng 15/25.
+7. Draw Section tại điểm mới khi đã kiểm tra. Các bản vẽ chính thức cũ không tự cập nhật.
 
 ## Kiểm tra mã nguồn
 
@@ -132,4 +156,4 @@ Khi gửi ảnh vòng này, nên có cả Preview bê tông sau khi bỏ dim X v
 
 Nguồn UI ở `../ui/CSA_StairDrawing.core.lsp`, planner dimension ở `../ui/CSA_StairConcreteDetails.lsp`, tim thép ở `../ui/CSA_StairRebar.lsp`; bản một file được tạo bằng `python3 stair-tool/tools/build_stair_bundle.py`. Không sửa trực tiếp file gộp. Chạy `python3 -m unittest discover -s stair-tool/tests -v` để kiểm tra.
 
-Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-draft v3**.
+Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v4**.

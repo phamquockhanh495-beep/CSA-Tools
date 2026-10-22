@@ -443,5 +443,35 @@
       "upper_clear_span",
       "overall_height"
     ]
+  },
+  "reinforcement_drafting": {
+    "leader_arrowheads": {
+      "section_bar": {
+        "name": "Architectural tick",
+        "AcDimArrowheadType": 4
+      },
+      "transverse_dot": {
+        "name": "Dot blank",
+        "AcDimArrowheadType": 12
+      }
+    },
+    "anchor_multiplier_cell": "BJ38",
+    "main_anchor_measure": "Horizontal straight segment into landing",
+    "landing_anchor_measure": "Along incline after concrete step transition; transition excluded",
+    "confirmation": "User confirmed 30d and following existing concrete geometry; reference image 3 is qualitative",
+    "distribution_cell": "BJ36",
+    "distribution_spacing": "True centre spacing along slope/horizontal landing, centered grid",
+    "distribution_axis_offset": "cover + longitudinal diameter + transverse diameter / 2",
+    "step_cells": {
+      "lower_count": "U28",
+      "flight_count": "AI23",
+      "riser": "AV21"
+    },
+    "switch_cells": {
+      "upper_landing_bars": "Z23",
+      "lower_landing_bars": "Z24",
+      "upper_landing_dots": "Z25",
+      "lower_landing_dots": "Z26"
+    }
   }
 }
