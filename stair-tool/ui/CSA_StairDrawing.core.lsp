@@ -207,7 +207,7 @@
 
 (defun csad:render (preview / *error* points base doc space csast-created csast-app
                             started old e layer coords array pl o minx maxx miny maxy
-                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage)
+                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage csad-dimensions)
   (defun *error* (msg)
     (foreach o csast-created (vl-catch-all-apply 'vla-Delete (list o)))
     (if started (vl-catch-all-apply 'vla-EndUndoMark (list doc)))
@@ -309,6 +309,7 @@
         (if (= "1" (csad:get 'details))
           (foreach spec (csad:detail-specs (csad:get 'rawpoints) gap)
             (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
+        (if csad-dimensions (csad:fixed-extensions csad-dimensions 150.0))
         (setq csad-stage "Elevations: Cao do blocks")
         (if (= "1" (csad:get 'levels))
           (progn
@@ -354,5 +355,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v4.2 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v4.3 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

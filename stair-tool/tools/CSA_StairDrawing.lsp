@@ -337,56 +337,40 @@
     (list (- (car mid) (* dx gap)) (- (cadr mid) (* dy gap))) specs))
   (reverse specs))
 
-;;; Fixed extension lines: DIMFXLON=1 (290), DIMFXL (49), per-entity overrides.
-;;; DIMFXL is scaled by DIMSCALE, so store 150 / effective scale for 150 model mm.
-(defun csad:fixed-dstyle (app model-length dimscale / tail before body after depth found item filtered)
-  (setq tail (cdr app))
-  (while (and tail (not found))
-    (if (and (equal (car tail) (cons 1000 "DSTYLE")) (equal (cadr tail) (cons 1002 "{")))
-      (progn
-        (setq found T tail (cddr tail) depth 1)
-        (while (and tail (> depth 0))
-          (setq item (car tail) tail (cdr tail))
-          (cond ((equal item (cons 1002 "{")) (setq depth (1+ depth)))
-                ((equal item (cons 1002 "}")) (setq depth (1- depth))))
-          (if (> depth 0) (setq body (append body (list item)))))
-        (setq after tail))
-      (setq before (append before (list (car tail))) tail (cdr tail))))
-  ;; Replace only these two variable/value pairs; preserve every other override.
-  (while body
-    (if (and (= (caar body) 1070) (cdr body))
-      (progn
-        ;; Consume each complete variable/value pair. An integer VALUE of 49
-        ;; (e.g. a color) must not be mistaken for the DIMFXL variable code.
-        (if (not (member (cdar body) '(49 290)))
-          (setq filtered (append filtered (list (car body) (cadr body)))))
-        (setq body (cddr body)))
-      (setq filtered (append filtered (list (car body))) body (cdr body))))
-  (append (list "ACAD") before
-    (list (cons 1000 "DSTYLE") (cons 1002 "{")) filtered
-    (list (cons 1070 49) (cons 1040 (/ model-length dimscale))
-          (cons 1070 290) (cons 1070 1) (cons 1002 "}")) after))
+;;; Use AutoCAD's native override command instead of hand-writing DSTYLE xdata.
+;;; Each group contains only newly created dimensions with the same scale.
+(defun csad:dimension-scale (object / scale)
+  (setq scale (vla-get-ScaleFactor object))
+  (if (<= scale 0.0) (setq scale (/ 1.0 (getvar "CANNOSCALEVALUE"))))
+  scale)
 
-(defun csad:fixed-extension (object model-length / entity data dimscale result group apps app found)
-  (setq csad-stage "Dimension: fix extension length to 150 model mm"
-        entity (vlax-vla-object->ename object) data (entget entity '("*"))
-        dimscale (vla-get-ScaleFactor object))
-  (if (<= dimscale 0.0) (setq dimscale (/ 1.0 (getvar "CANNOSCALEVALUE"))))
-  (foreach group data
-    (if (= (car group) -3)
-      (progn
-        (setq apps nil)
-        (foreach app (cdr group)
-          (if (= (car app) "ACAD")
-            (setq app (csad:fixed-dstyle app model-length dimscale) found T))
-          (setq apps (append apps (list app))))
-        (setq group (cons -3 apps))))
-    (setq result (append result (list group))))
-  (if (not found)
-    (setq result (append result (list (list -3 (csad:fixed-dstyle (list "ACAD") model-length dimscale))))))
-  (if (not (entmod result)) (progn (princ "\nCannot set fixed extension length on dimension.") (exit)))
-  (entupd entity)
-  object)
+(defun csad:dimoverride (selection scaled-length / previous-echo result)
+  (setq previous-echo (getvar "CMDECHO"))
+  (setvar "CMDECHO" 0)
+  ;; command-s completes in a temporary command processor; no interactive PAUSE.
+  ;; The native command validates and serializes the dimension overrides.
+  (setq result (vl-catch-all-apply 'command-s
+    (list "_.DIMOVERRIDE" "DIMFXLON" "_ON" "DIMFXL" scaled-length "" selection "")))
+  (setvar "CMDECHO" previous-echo)
+  (if (vl-catch-all-error-p result)
+    (progn
+      (princ (strcat "\nDIMOVERRIDE failed: " (vl-catch-all-error-message result)))
+      (exit)))
+  T)
+
+(defun csad:fixed-extensions (objects model-length / groups group object scale selection)
+  (setq csad-stage "Dimensions: native DIMOVERRIDE, fixed extension length 150 model mm")
+  (foreach object objects
+    (setq scale (csad:dimension-scale object) group (assoc scale groups))
+    (if group
+      (setq groups (subst (cons scale (cons object (cdr group))) group groups))
+      (setq groups (cons (list scale object) groups))))
+  (foreach group groups
+    (setq selection (ssadd))
+    (foreach object (cdr group)
+      (ssadd (vlax-vla-object->ename object) selection))
+    (csad:dimoverride selection (/ model-length (car group))))
+  T)
 
 (defun csad:draw-spec (space base spec layer style / a b location kind obj)
   (setq a (nth 2 spec) b (nth 3 spec) location (nth 4 spec) kind (nth 1 spec)
@@ -398,7 +382,7 @@
     (setq obj (csast:track (vla-AddDimRotated space (vlax-3d-point a)
       (vlax-3d-point b) (vlax-3d-point location) (if (= kind "H") 0.0 (/ pi 2.0))))))
   (vla-put-Layer obj layer) (vla-put-StyleName obj style)
-  (csad:fixed-extension obj 150.0)
+  (setq csad-dimensions (cons obj csad-dimensions))
   (vla-Update obj)
   obj)
 
@@ -1056,7 +1040,7 @@
 
 (defun csad:render (preview / *error* points base doc space csast-created csast-app
                             started old e layer coords array pl o minx maxx miny maxy
-                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage)
+                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage csad-dimensions)
   (defun *error* (msg)
     (foreach o csast-created (vl-catch-all-apply 'vla-Delete (list o)))
     (if started (vl-catch-all-apply 'vla-EndUndoMark (list doc)))
@@ -1158,6 +1142,7 @@
         (if (= "1" (csad:get 'details))
           (foreach spec (csad:detail-specs (csad:get 'rawpoints) gap)
             (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
+        (if csad-dimensions (csad:fixed-extensions csad-dimensions 150.0))
         (setq csad-stage "Elevations: Cao do blocks")
         (if (= "1" (csad:get 'levels))
           (progn
@@ -1203,5 +1188,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v4.2 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v4.3 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

@@ -100,6 +100,14 @@ Gửi ảnh gồm giao diện sau Load Excel và mặt cắt sau Preview/Draw Se
 
 Nút **Plan (next phase)** được vô hiệu hóa: bảng tọa độ đang có là đường bao mặt cắt, chưa chứa dữ liệu mặt bằng 2 vế/3 vế. Đã có tùy chọn tim thép dọc và thép chiếu nghỉ ở giai đoạn kiểm tra, chưa có thống kê hoặc móc/uốn hoàn chỉnh. Không lấy các thanh mẫu ở tiện ích kiểm tra để thay cho thiết kế. Bản này chưa triển khai toàn bộ cầu thang 2/3 vế.
 
+## Bản rebar-detail v4.3: sửa lỗi ghi chân dim
+
+Ảnh lỗi `Cannot set fixed extension length on dimension` cho biết lời gọi `entmod` của v4.2 trả về nil khi ghi override DSTYLE; code sau đó gọi `exit` nên dòng tiếp theo là `quit / exit abort`. Đây là lỗi tại bước ghi thuộc tính dimension.
+
+V4.3 bỏ phần tự ghi DSTYLE xdata và dùng lệnh **DIMOVERRIDE** của AutoCAD để đặt `DIMFXLON=On`, `DIMFXL=150 / effective DIMSCALE`. Chỉ các dimension vừa tạo được gom theo scale vào selection set; mỗi nhóm chạy một lệnh, không chọn dim cũ hoặc đổi định nghĩa DimStyle. Với 16 dim cùng GB 25, chỉ gọi một lần với DIMFXL=6. `command-s` chạy đầy đủ tham số, không chờ người dùng nhập trong quá trình vẽ. CMDECHO được khôi phục cả khi lệnh báo lỗi.
+
+Sau APPLOAD cần thấy **rebar-detail v4.3**, rồi Load / Reload Excel và Preview ở vùng trống. Kiểm tra chân dim 150 mm và các số đo như trước. Bản sửa đã kiểm tra cách gom selection, bù scale, tham số lệnh và xử lý lỗi bằng stub offline; vẫn cần xác nhận lệnh chạy trong AutoCAD thực tế. Kiểm tra số bậc của v4.2 được giữ nguyên, nên cấu hình đầu bản xiên 0 mm vẫn cần tắt Step counts from Excel để kiểm tra riêng đường bao/thép như đã hướng dẫn.
+
 ## Bản rebar-detail v4.2: chân dim và bố trí ghi chú
 
 Bản này sửa ba điểm theo ảnh phản hồi mới:
@@ -158,7 +166,7 @@ Thép dùng `18-GB-Reinf`, leader/ghi chú dùng `20-GB-GC`. Block `CSA_Sohieu-K
 
 ### Kiểm tra trong AutoCAD
 
-1. APPLOAD file mới, command line phải báo **rebar-detail v4.2**. Load / Reload Excel một lần.
+1. APPLOAD file mới, command line phải báo **rebar-detail v4.3**. Load / Reload Excel một lần.
 2. Bật Step counts from Excel và Rebar draft, Preview ở vùng trống. File mẫu có `12 BAC` và `2 BAC`.
 3. Chọn leader trong Properties: Type là Straight/Line with arrow; thanh mặt cắt dùng Architectural tick size 100, chấm thép dùng Dot blank size 60 (hoặc giá trị vừa nhập trên UI). Nhánh ngang phải nằm dưới text DK-KC, không còn đường spline.
 4. Kiểm tra chấm theo BJ36: mặc định d12, bước tim 100 mm; đo dọc bản xiên. Với BJ28=25, tim dọc cách biên 25 và tim chấm cách biên 31 mm. Kiểm tra cả hai lớp và từng chiếu nghỉ đang bật. Đo chân dim được 150 mm ở các hàng dim, kể cả tổng ngang, tổng chênh cao và dim bản xiên.
@@ -172,4 +180,4 @@ Thép dùng `18-GB-Reinf`, leader/ghi chú dùng `20-GB-GC`. Block `CSA_Sohieu-K
 
 Nguồn UI ở `../ui/CSA_StairDrawing.core.lsp`, planner dimension ở `../ui/CSA_StairConcreteDetails.lsp`, tim thép ở `../ui/CSA_StairRebar.lsp`; bản một file được tạo bằng `python3 stair-tool/tools/build_stair_bundle.py`. Không sửa trực tiếp file gộp. Chạy `python3 -m unittest discover -s stair-tool/tests -v` để kiểm tra.
 
-Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v4.2**.
+Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v4.3**.

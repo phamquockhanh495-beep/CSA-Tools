@@ -70,55 +70,67 @@ class ConcreteDetailsTests(unittest.TestCase):
                                    self.pure.call('csad:dim-measure', b))
             self.assertNotEqual(a[4], b[4])
 
-    def test_fixed_extensions_are_150_model_mm_and_keep_other_dstyle_data(self):
-        for scale in (1, 25, 50):
-            app = ['ACAD', (1000,'before'), (1000,'DSTYLE'), (1002,'{'),
-                   (1070,140), (1040,2.5), (1070,49), (1040,999.0),
-                   (1070,290), (1070,0), (1002,'}'), (1000,'after')]
-            result = self.pure.call('csad:fixed-dstyle', app, 150, scale)
-            i = result.index((1070,49))
-            self.assertEqual(result[i+1][1]*scale, 150)
-            i = result.index((1070,290))
-            self.assertEqual(result[i+1], (1070,1))
-            self.assertEqual(result.count((1070,49)), 1)
-            self.assertEqual(result.count((1070,290)), 1)
-            self.assertIn((1070,140), result)
-            self.assertIn((1040,2.5), result)
-            self.assertEqual(result[1], (1000,'before'))
-            self.assertEqual(result[-1], (1000,'after'))
-            self.assertEqual(self.pure.call('csad:fixed-dstyle', result, 150, scale), result)
-        fresh = self.pure.call('csad:fixed-dstyle', ['ACAD'], 150, 25)
-        self.assertIn((1040,6), fresh)
-
-    def test_fixed_extension_preserves_preview_tags_and_all_apps(self):
-        # Execute the native-data merge with API boundaries stubbed.
+    def test_fixed_extensions_batch_only_new_dimensions_by_scale(self):
         pure = PureLisp(lisp_forms((TOOL/'tools/CSA_StairDrawing.lsp').read_text()))
-        before = [(0,'DIMENSION'), [-3, ['CSA_STAIR_PREVIEW',(1000,'v1')],
-                   ['ACAD',(1000,'other-data')]], [-3,['OTHER',(1000,'keep')]]]
-        output = {}
+        names = [f'new-{i}' for i in range(16)] + ['other-scale']
+        overrides = []
+        def selection_add(entity=None, selection=None):
+            if selection is None: return []
+            selection.append(entity)
+            return selection
         pure.host.update({
-            'vlax-vla-object->ename': lambda obj: 'dimension',
-            'entget': lambda *args: before,
-            'vla-get-ScaleFactor': lambda obj: 25,
-            'entmod': lambda data: output.update(data=data) or data,
-            'entupd': lambda entity: None,
+            'vla-get-ScaleFactor': lambda obj: 50 if obj == 'other-scale' else 25,
+            'assoc': lambda key, entries: next((v for v in (entries or []) if v[0] == key), None),
+            'subst': lambda new, old, entries: [new if v == old else v for v in entries],
+            'ssadd': selection_add,
+            'vlax-vla-object->ename': lambda obj: obj,
+            'csad:dimoverride': lambda selection, value: overrides.append((selection.copy(), value)),
         })
-        pure.call('csad:fixed-extension', 'object', 150)
-        after = output['data']
-        self.assertEqual(after[0], before[0])
-        self.assertEqual(after[1][1], before[1][1])
-        self.assertEqual(after[2], before[2])
-        self.assertIn((1000,'other-data'), after[1][2])
-        self.assertIn((1040,6), after[1][2])
+        pure.call('csad:fixed-extensions', names, 150)
+        self.assertEqual(len(overrides), 2)
+        self.assertEqual({e for selection, _ in overrides for e in selection}, set(names))
+        for selection, value in overrides:
+            scale = 50 if selection == ['other-scale'] else 25
+            self.assertEqual(value*scale, 150)
+        # No dimensions selected means no native command is run.
+        overrides.clear()
+        pure.call('csad:fixed-extensions', [], 150)
+        self.assertEqual(overrides, [])
 
-    def test_fixed_extensions_do_not_confuse_integer_values_with_variable_codes(self):
-        app = ['ACAD',(1000,'DSTYLE'),(1002,'{'),
-               (1070,176),(1070,49), # DIMCLRD color value is 49
-               (1070,177),(1070,290),
-               (1070,49),(1040,10),(1070,290),(1070,0),(1002,'}')]
-        result = self.pure.call('csad:fixed-dstyle', app, 150, 25)
-        self.assertEqual(result[3:7], app[3:7])
-        self.assertEqual(result[7:], [(1070,49),(1040,6),(1070,290),(1070,1),(1002,'}')])
+    def test_native_dimoverride_arguments_and_echo_restoration_on_failure(self):
+        for fail in (False, True):
+            pure = PureLisp(lisp_forms((TOOL/'tools/CSA_StairDrawing.lsp').read_text()))
+            state, calls, messages = {'echo':1}, [], []
+            def native_command(*args):
+                self.assertEqual(state['echo'], 0)
+                calls.append(args)
+                if fail: raise RuntimeError('native command failure')
+                return True
+            def catch(fn, args):
+                try: return pure.call(fn, *args)
+                except RuntimeError as error: return error
+            def abort(): raise RuntimeError('abort section')
+            pure.host.update({
+                'getvar': lambda key: state['echo'],
+                'setvar': lambda key, value: state.update(echo=value),
+                'vl-catch-all-apply': catch,
+                'vl-catch-all-error-p': lambda value: isinstance(value, Exception),
+                'vl-catch-all-error-message': str,
+                'command-s': native_command, 'princ': messages.append, 'exit': abort,
+            })
+            if fail:
+                with self.assertRaisesRegex(RuntimeError, 'abort section'):
+                    pure.call('csad:dimoverride', ['new-dim'], 6)
+                self.assertIn('native command failure', messages[0])
+            else:
+                self.assertTrue(pure.call('csad:dimoverride', ['new-dim'], 6))
+            self.assertEqual(calls, [('_.DIMOVERRIDE','DIMFXLON','_ON','DIMFXL',6,'',['new-dim'],'')])
+            self.assertEqual(state['echo'], 1)
+
+    def test_dimension_scale_uses_annotation_scale_for_zero_dimscale(self):
+        pure = PureLisp(lisp_forms((TOOL/'tools/CSA_StairDrawing.lsp').read_text()))
+        pure.host.update({'vla-get-ScaleFactor':lambda obj:0, 'getvar':lambda key:1/25})
+        self.assertEqual(pure.call('csad:dimension-scale', 'dimension'), 25)
 
     def test_block_scale_recovery_with_inch_compensation(self):
         def scale_entity(obj, point, factor):

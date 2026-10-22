@@ -447,7 +447,8 @@
       "model_mm": 150,
       "DIMFXLON": 1,
       "DIMFXL": "150 / effective DIMSCALE",
-      "scope": "New dimension entities only; existing styles preserved"
+      "scope": "New dimension entities only; existing styles preserved",
+      "method": "Native DIMOVERRIDE via command-s, new dimensions grouped by effective scale; no manual DSTYLE write"
     }
   },
   "reinforcement_drafting": {
