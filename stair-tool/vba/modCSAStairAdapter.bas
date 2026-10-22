@@ -108,7 +108,7 @@ Public Function CSA_InsertElevation(ByVal point As Variant, ByVal value As Strin
 End Function
 
 Public Function CSA_InsertSectionSymbol(ByVal point As Variant, ByVal value As String, _
-                                        Optional ByVal scale As Double = 0.0075) As Object
+                                        Optional ByVal scale As Double = 0.01) As Object
     Set CSA_InsertSectionSymbol = CSA_InsertTaggedBlock("Daucat", "12-GB-Ky Hieu", _
         point, scale, Array("A"), Array(value))
 End Function

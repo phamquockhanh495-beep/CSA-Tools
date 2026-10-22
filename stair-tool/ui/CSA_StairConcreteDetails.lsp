@@ -75,20 +75,16 @@
   (setq specs (csad:addspec "upper_landing" "H" p4 p6 (list minx (+ maxy gap)) specs))
   ;; Floor rise is separate from the total outline height including downstands.
   (setq specs (csad:addspec "floor_rise" "V" p1 p5 (list (- minx (* 3.0 gap)) maxy) specs))
-  ;; Lower slab, downstand below slab, and total beam depth.
+  ;; Lower slab and downstand below slab; total beam depth is suppressed.
   (setq specs (csad:addspec "lower_slab" "V" p21 p1 (list (- minx gap) miny) specs))
   (setq specs (csad:addspec "lower_downstand" "V" p23 p21 (list (- minx gap) miny) specs))
-  (setq specs (csad:addspec "lower_beam_total" "V" p23 p1 (list (- minx (* 2.0 gap)) miny) specs))
   (setq specs (csad:addspec "lower_first_beam_width" "H" p23 p22 (list minx (- miny gap)) specs))
-  (setq specs (csad:addspec "lower_clear_span" "H" p22 p19 (list minx (- miny gap)) specs))
   (setq specs (csad:addspec "lower_last_beam_width" "H" p19 p18 (list minx (- miny gap)) specs))
   ;; Upper slab/downstand; dimensions are vertical projections, not diagonals.
   (setq specs (csad:addspec "upper_slab" "V" p9 p5 (list (+ maxx gap) maxy) specs))
   (setq specs (csad:addspec "upper_downstand" "V" p7 p9 (list (+ maxx gap) maxy) specs))
-  (setq specs (csad:addspec "upper_beam_total" "V" p7 p5 (list (+ maxx (* 2.0 gap)) maxy) specs))
   (setq uppery (- (min (cadr p7) (cadr p12)) gap))
   (setq specs (csad:addspec "upper_first_beam_width" "H" p12 p11 (list maxx uppery) specs))
-  (setq specs (csad:addspec "upper_clear_span" "H" p11 p8 (list maxx uppery) specs))
   (setq specs (csad:addspec "upper_last_beam_width" "H" p8 p7 (list maxx uppery) specs))
   (setq specs (csad:addspec "lower_step_rise" "V" p2 p3 (list (- (car p2) gap) (cadr p3)) specs))
   (setq specs (csad:addspec "upper_step_rise" "V" p4 p5 (list (- (car p4) gap) (cadr p5)) specs))
@@ -137,7 +133,7 @@
             prefix (csast:text space "MAT CAT" (csast:p base x y) (* 0.7 titleheight)
                      (if preview "CSA-PREVIEW" "10-GB-Text") "01-GB-Arial")
             symbol (csast:insert space "Daucat" (csast:p base x y)
-                     (if preview "CSA-PREVIEW" "12-GB-Ky Hieu") 0.0075
+                     (if preview "CSA-PREVIEW" "12-GB-Ky Hieu") 0.01
                      (list (cons "A" (csad:get 'section))))
             pw (csad:width prefix) sw (csad:width symbol)
             total (+ pw sw (* 0.5 titleheight)))

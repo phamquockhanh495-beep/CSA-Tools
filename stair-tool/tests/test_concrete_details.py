@@ -34,10 +34,9 @@ class ConcreteDetailsTests(unittest.TestCase):
         expected = {
             'lower_landing': 2000, 'flight_run': 3000, 'upper_landing': 1500,
             'floor_rise': 2200, 'lower_slab': 120, 'lower_downstand': 280,
-            'lower_beam_total': 400, 'lower_first_beam_width': 200,
-            'lower_clear_span': 1700, 'lower_last_beam_width': 250,
-            'upper_slab': 120, 'upper_downstand': 280, 'upper_beam_total': 400,
-            'upper_first_beam_width': 200, 'upper_clear_span': 1100,
+            'lower_first_beam_width': 200, 'lower_last_beam_width': 250,
+            'upper_slab': 120, 'upper_downstand': 280,
+            'upper_first_beam_width': 200,
             'upper_last_beam_width': 200, 'lower_step_rise': 314.2857142857143,
             'upper_step_rise': 157.14285714285714, 'inclined_slab_normal': 120,
         }
@@ -85,7 +84,7 @@ class ConcreteDetailsTests(unittest.TestCase):
             'vla-Update': lambda o: None,
         })
         for factor in (1, 25.4):
-            requested = 0.0075
+            requested = 0.01
             obj = {axis: requested/factor for axis in ('x', 'y', 'z')}
             obj['transforms'] = []
             self.pure.call('csast:normalize-scale', obj, [0, 0, 0], requested)

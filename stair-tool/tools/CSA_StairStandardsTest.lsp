@@ -200,7 +200,7 @@
       (vla-put-StyleName o style)
       (csast:insert space "Cao do" (csast:p base 0 200) "11-GB-Cao Do" 0.25
         '(("%%P0.000" . "+3.600")))
-      (csast:insert space "Daucat" (csast:p base 4000 0) "12-GB-Ky Hieu" 0.0075
+      (csast:insert space "Daucat" (csast:p base 4000 0) "12-GB-Ky Hieu" 0.01
         '(("A" . "1-1")))
       (csast:insert space "So hieu thep" (csast:p base 0 -1700) "20-GB-GC" 0.35
         '(("A" . "1")))
@@ -211,7 +211,7 @@
       (vla-Regen doc 0)
       (vla-EndUndoMark doc) (setq undo-started nil)
       (princ (strcat "\nTest panel created. DimStyle: " style
-        "; block scales fixed: Cao do=0.25, Daucat=0.0075, mark=0.35, note=1.0"
+        "; block scales fixed: Cao do=0.25, Daucat=0.01, mark=0.35, note=1.0"
         ". Check dimension=3000, block shape/scale, font and colors."))
       (princ "\nRun CSA_STAIR_TEST_CLEAR to remove only tagged test objects.")))
   (princ))

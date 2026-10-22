@@ -6,11 +6,11 @@ This directory contains the first isolated implementation for the stair tool. It
 
 APPLOAD the single file [`tools/CSA_StairDrawing.lsp`](tools/CSA_StairDrawing.lsp) and run **`CSA_STAIR_DRAWING`**. Read [the workflow and acceptance instructions](tools/STAIR-DRAWING.md). It provides a native DCL dialog, file selection for a workbook already open in Excel, section preview and export to existing CSA layers. No VBA import is required for this milestone.
 
-The concrete-details v2 update adds 19 measured concrete detail dimensions for the current workbook contract, a centered caption with adjustable title height/spacing, and reference-scale normalization after AutoCAD block-unit compensation. Reload Excel once after APPLOAD to acquire the additional parameters. Native AutoCAD acceptance of the new scale and layout remains required.
+The v3 update keeps 15 measured concrete detail dimensions after removing the five dimensions marked by the user (including the overall height) for the current workbook contract, a centered caption with adjustable title height/spacing, and reference-scale normalization after AutoCAD block-unit compensation. Reload Excel once after APPLOAD to acquire the additional parameters. Native AutoCAD acceptance of the new scale and layout remains required.
 
-Accepted block scales: `Cao do` **0.25**, `Daucat` **0.0075**, `So hieu thep` **0.35**, and `CSA_Sohieu-KCthep` **1.0**. The first three match the user's annotated image; the note block retains its previous sample scale. These are template-specific defaults, not a general DimStyle scaling formula.
+Accepted block scales: `Cao do` **0.25**, `Daucat` **0.01**, `So hieu thep` **0.35**, and `CSA_Sohieu-KCthep` **1.0**. The first three match the user's annotated image; the note block retains its previous sample scale. These are template-specific defaults, not a general DimStyle scaling formula.
 
-This milestone uses the existing section coordinates in `Cau Thang Tools`. Plan geometry, actual reinforcement and a packaged DVB UserForm remain outstanding. AutoCAD/Excel COM and the UI require validation on Windows; offline tests do not replace that acceptance.
+This milestone uses the existing section coordinates in `Cau Thang Tools`. Plan geometry, complete reinforcement detailing and a packaged DVB UserForm remain outstanding. An optional centreline draft now uses Excel for longitudinal reinforcement with straight 30d legs and landing bars in the section plane, as confirmed by the user; see the reinforcement section in the workflow guide. AutoCAD/Excel COM and the UI require validation on Windows; offline tests do not replace that acceptance.
 
 The MVP targets a two-flight U-shaped stair and uses AutoCAD layer `CSA-PREVIEW` for disposable geometry. The same coordinate builder is used for preview and final drawing so the preview is a faithful check of the geometry that will be committed.
 

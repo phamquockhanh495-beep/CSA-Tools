@@ -114,7 +114,7 @@ class StandardsTests(unittest.TestCase):
 
     def test_accepted_block_scales_match_image_and_vba(self):
         scales = self.profile['presentation_defaults']['block_scales']
-        self.assertEqual(scales, {'Cao do': 0.25, 'Daucat': 0.0075,
+        self.assertEqual(scales, {'Cao do': 0.25, 'Daucat': 0.01,
                                   'So hieu thep': 0.35, 'CSA_Sohieu-KCthep': 1.0})
         insertions = {f[2]: float(f[5]) for f in walk(self.defs['c:CSA_STAIR_TEST'])
                       if isinstance(f, list) and f and f[0] == 'csast:insert'}

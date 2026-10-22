@@ -428,13 +428,20 @@
     "dimstyle": "GB 25",
     "block_scales": {
       "Cao do": 0.25,
-      "Daucat": 0.0075,
+      "Daucat": 0.01,
       "So hieu thep": 0.35,
       "CSA_Sohieu-KCthep": 1.0
     },
     "evidence": {
-      "source": "User annotated acceptance image",
+      "source": "User final dimension markup and Daucat scale correction to 0.01",
       "scope": "Fixed accepted defaults for this CSA template and GB 25; no ratio-based scaling law."
-    }
+    },
+    "suppressed_dimensions": [
+      "lower_beam_total",
+      "upper_beam_total",
+      "lower_clear_span",
+      "upper_clear_span",
+      "overall_height"
+    ]
   }
 }

@@ -41,7 +41,7 @@
   (/ (abs area) 2.0))
 
 (defun csad:loadexcel (path / *error* excel books book sheets sheet cells row id x y candidate ref
-                           points rawpoints metadata rawcount rise bottom title firstlevel high found)
+                           points rawpoints metadata rebar-data rawcount rise bottom title firstlevel high found)
   (defun *error* (msg)
     (foreach ref (list cells sheet sheets book books excel)
       (if (= (type ref) 'VLA-OBJECT) (vl-catch-all-apply 'vlax-release-object (list ref))))
@@ -81,6 +81,10 @@
   (setq metadata (list (csad:cell cells 19 8) (csad:cell cells 19 26)
     (csad:cell cells 19 53) (csad:cell cells 31 4) (csad:cell cells 33 4)
     (csad:cell cells 21 73) (csad:cell cells 22 73) (csad:cell cells 27 41)))
+  (setq rebar-data nil row 28)
+  (while (<= row 41)
+    (setq rebar-data (append rebar-data (list (csad:cell cells row 62))) row (1+ row)))
+  (csad:put 'rebar-data rebar-data)
   (csad:put 'rawpoints rawpoints)
   (csad:put 'concrete-parameters metadata)
   (csad:put 'points points)
@@ -95,7 +99,7 @@
   T)
 
 (defun csad:capture (/ key)
-  (foreach key '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "titleheight" "dimgap")
+  (foreach key '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "rebar" "titleheight" "dimgap")
     (csad:put (read key) (get_tile key)))
   (csad:put 'dimstyle (nth (atoi (get_tile "dimstyle")) csad-styles)))
 
@@ -120,17 +124,18 @@
           ": edit_box { key = \"top\"; label = \"Top elevation (m)\"; edit_width = 16; } }"
           ": boxed_column { label = \"Accepted CSA block scales\";"
           ": text { label = \"Cao do : 0.25\"; }"
-          ": text { label = \"Daucat : 0.0075\"; }"
+          ": text { label = \"Daucat : 0.01\"; }"
           ": text { label = \"So hieu thep : 0.35\"; }"
           ": text { label = \"CSA_Sohieu-KCthep : 1.0\"; }"
           ": text { label = \"Preview in the AutoCAD viewport\"; } } }"
           ": row { : edit_box { key = \"titleheight\"; label = \"Title height (mm)\"; edit_width = 12; }"
           ": edit_box { key = \"dimgap\"; label = \"Dimension spacing (mm)\"; edit_width = 12; } }"
           ": boxed_row { label = \"Section options\";"
-          ": toggle { key = \"dims\"; label = \"Overall dimensions\"; }"
+          ": toggle { key = \"dims\"; label = \"Overall width\"; }"
           ": toggle { key = \"details\"; label = \"Concrete details\"; }"
           ": toggle { key = \"levels\"; label = \"Elevations\"; }"
           ": toggle { key = \"symbol\"; label = \"Section symbol\"; } }"
+          ": toggle { key = \"rebar\"; label = \"Rebar draft - longitudinal straight legs and landing bars in section plane\"; }"
           ": text { key = \"status\"; width = 80; }"
           ": row { : button { key = \"preview\"; label = \"Preview\"; }"
           ": button { key = \"draw\"; label = \"Draw Section\"; }"
@@ -143,7 +148,7 @@
       (if (and (> id 0) (new_dialog "csad_ui" id))
         (progn
           (set_tile "path" (cond ((csad:get 'path)) (T "Open workbook in Excel, then Load Excel.")))
-          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "status" "titleheight" "dimgap")
+          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "rebar" "status" "titleheight" "dimgap")
             (set_tile name (csad:get (read name))))
           (start_list "dimstyle") (foreach name csad-styles (add_list name)) (end_list)
           (setq index (vl-position (csad:get 'dimstyle) csad-styles))
@@ -211,6 +216,9 @@
   (if (= "1" (csad:get 'details))
     (if (setq spec (csad:detail-error (csad:get 'rawpoints) (csad:get 'concrete-parameters)))
       (setq issue spec)))
+  (if (= "1" (csad:get 'rebar))
+    (if (setq spec (csar:error (csad:get 'rawpoints) (csad:get 'concrete-parameters) (csad:get 'rebar-data)))
+      (setq issue spec)))
   (if (or (null bottom) (null top) (<= top bottom))
     (setq issue "Enter valid elevations with top above bottom."))
   (if (and points bottom top
@@ -227,6 +235,8 @@
         (setq need (cons "04-GB-Dim" need)))
       (if (= "1" (csad:get 'levels)) (setq need (cons "11-GB-Cao Do" need)))
       (if (= "1" (csad:get 'symbol)) (setq need (cons "12-GB-Ky Hieu" need)))))
+  (if (and (not preview) (= "1" (csad:get 'rebar)))
+    (setq need (append need '("18-GB-Reinf" "20-GB-GC"))))
   (foreach name need
     (if (and (not (and preview (= name "CSA-PREVIEW") (not (tblsearch "LAYER" name))))
              (not (csad:layerready name)))
@@ -236,6 +246,10 @@
     (if (not (member "%%P0.000" (csast:tags name))) (setq issue "Missing block/tag: Cao do/%%P0.000")))
   (if (and (= "1" (csad:get 'symbol)) (not (member "A" (csast:tags "Daucat"))))
     (setq issue "Missing block/tag: Daucat/A"))
+  (if (and (= "1" (csad:get 'rebar))
+           (not (and (member "SH" (csast:tags "CSA_Sohieu-KCthep"))
+                     (member "DK-KC" (csast:tags "CSA_Sohieu-KCthep")))))
+    (setq issue "Missing block/tags: CSA_Sohieu-KCthep / SH / DK-KC"))
   (foreach e old
     (if (not (csad:layerready (cdr (assoc 8 (entget e)))))
       (setq issue "Old preview layer is off, frozen or locked.")))
@@ -266,12 +280,10 @@
         (vla-put-Layer pl layer) (vla-put-Closed pl :vlax-true) (vla-put-Elevation pl (caddr base))
         (csad:caption space base minx maxx miny titleheight gap preview)
         (if (= "1" (csad:get 'dims))
-          (foreach spec (list
+          (csad:draw-spec space base
             (list "overall_width" "H" (list minx miny) (list maxx miny)
                   (list (/ (+ minx maxx) 2.0) (- miny (* 2.0 gap))))
-            (list "overall_height" "V" (list maxx miny) (list maxx maxy)
-                  (list (+ maxx (* 3.0 gap)) (/ (+ miny maxy) 2.0))))
-            (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
+            (if preview layer "04-GB-Dim") (csad:get 'dimstyle)))
         (if (= "1" (csad:get 'details))
           (foreach spec (csad:detail-specs (csad:get 'rawpoints) gap)
             (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
@@ -281,6 +293,8 @@
               (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext bottom))))
             (csast:insert space "Cao do" (csast:p base (car toppt) (cadr toppt))
               (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext top))))))
+        (if (= "1" (csad:get 'rebar))
+          (csar:render space base (csad:get 'rawpoints) (csad:get 'rebar-data) preview gap height))
         ;; Replace only previously tagged previews after new geometry succeeds.
         (foreach e old (if (not (entdel e)) (progn (princ "\nCannot delete old preview.") (exit))))
         (vla-Regen doc 0) (vla-EndUndoMark doc) (setq started nil)
@@ -296,7 +310,7 @@
       (status . "Load current Excel coordinates to begin."))))
   ;; Migrate cached state from earlier APPLOAD versions without fabricating
   ;; missing detail metadata. Reload Excel once to populate that metadata.
-  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400"))
+  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400") (rebar . "0"))
     (if (not (assoc (car entry) *csad-state*)) (csad:put (car entry) (cdr entry))))
   (setq action 1)
   (while (and action (/= action 0))
@@ -311,5 +325,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair concrete-details v2 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-draft v3 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

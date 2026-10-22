@@ -20,7 +20,7 @@ class SectionUITests(unittest.TestCase):
         for top in self.forms:
             for form in walk(top):
                 if isinstance(form, list) and form and isinstance(form[0], Symbol):
-                    if form[0].startswith(('csad:', 'csast:')):
+                    if form[0].startswith(('csad:', 'csast:', 'csar:')):
                         self.assertIn(form[0], self.pure.defs)
 
     def test_actual_lisp_cleanup_and_area_with_workbook_coordinates(self):

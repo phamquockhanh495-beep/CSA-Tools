@@ -7,7 +7,7 @@ Chỉ cần tải `CSA_StairStandardsTest.lsp`, không cần import VBA, file DC
 3. Gõ `CSA_STAIR_CHECK`. Xem kết quả bằng **F2**. Lệnh kiểm tra tài nguyên không vẽ gì.
 4. Gõ `CSA_STAIR_TEST`, chọn DimStyle trong danh sách, bắt đầu với **GB 25**.
 5. Chọn một điểm trong vùng trống; đơn vị phải là mm (`INSUNITS=4`).
-6. Các scale đã cố định theo hình người dùng: `Cao do` **0.25**, `Daucat` **0.0075**, `So hieu thep` **0.35**, `CSA_Sohieu-KCthep` **1.0**. Không còn hỏi scale chung khi chạy mẫu. Không tự suy ra scale từ mẫu số tỷ lệ bản vẽ.
+6. Các scale đã cố định theo hình người dùng: `Cao do` **0.25**, `Daucat` **0.01**, `So hieu thep` **0.35**, `CSA_Sohieu-KCthep` **1.0**. Không còn hỏi scale chung khi chạy mẫu. Không tự suy ra scale từ mẫu số tỷ lệ bản vẽ.
 7. Chụp ảnh toàn bộ vùng mẫu và các chỗ sai tỷ lệ/font. Thử lại với `GB 50` nếu cần so sánh.
 8. `CSA_STAIR_TEST_CLEAR` xóa riêng các đối tượng mẫu được đánh dấu. Các lần chạy được giữ lại để so sánh cho đến khi bạn xóa. Có thể dùng `UNDO` để hoàn tác từng lần dựng mẫu.
 
@@ -26,7 +26,7 @@ Chỉ cần tải `CSA_StairStandardsTest.lsp`, không cần import VBA, file DC
 
 Vui lòng gửi ảnh kèm tên DimStyle, hệ số block, phiên bản AutoCAD và thông báo lỗi nếu có. Chữ mẫu dùng ASCII để không trộn Unicode với bảng mã VNI; chưa kiểm tra toàn bộ chữ tiếng Việt. Kiểm tra font bằng mắt vì khả năng tìm thấy file trên search path không chứng minh font đã được AutoCAD dùng đúng.
 
-Kết quả người dùng đã gửi: tài nguyên được tìm thấy, mẫu với `GB 25` hiển thị dimension 3000 và các giá trị tag. Hình chốt sau cùng thay thế scale cao độ 0.35 trước đó bằng **0.25**, mặt cắt **0.0075**, số hiệu thép **0.35**; ghi chú thép giữ **1.0**. Chưa áp dụng quy luật scale theo tỷ lệ bản vẽ. Đặc biệt, thông báo `findfile` không tìm thấy Arial/VNI trên search path không chứng minh Windows chưa cài font đó.
+Kết quả người dùng đã gửi: tài nguyên được tìm thấy, mẫu với `GB 25` hiển thị dimension 3000 và các giá trị tag. Hình chốt sau cùng thay thế scale cao độ 0.35 trước đó bằng **0.25**, mặt cắt **0.01**, số hiệu thép **0.35**; ghi chú thép giữ **1.0**. Chưa áp dụng quy luật scale theo tỷ lệ bản vẽ. Đặc biệt, thông báo `findfile` không tìm thấy Arial/VNI trên search path không chứng minh Windows chưa cài font đó.
 
 Bản concrete-details v2 đọc lại scale tham chiếu sau `InsertBlock` và biến đổi đồng đều nếu cần để đạt đúng Scale X/Y/Z đã chốt. Cách này xử lý trường hợp block Inches bị bù đơn vị thành khoảng 0.0003 khi yêu cầu 0.0075. Không sửa đơn vị block hay biến `INSUNITS`; kiểm tra lại bằng Properties của block mới.
 
