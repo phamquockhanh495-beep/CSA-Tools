@@ -272,14 +272,59 @@ class RebarTests(unittest.TestCase):
             self.assertLessEqual(min(route[1][0],route[2][0]), textlow[0])
             self.assertGreaterEqual(max(route[1][0],route[2][0]), texthigh[0])
 
-    def test_note_pairs_share_a_column_with_separate_parallel_stems(self):
-        for region in ('FLIGHT','LOWER','UPPER'):
-            for top in (None, True):
-                main = self.pure.call('csar:note-position', self.raw, region, top, None, 400, 62.5)
-                dots = self.pure.call('csar:note-position', self.raw, region, top, True, 400, 62.5)
-                self.assertEqual(main[0], dots[0])
-                self.assertGreaterEqual(abs(main[1]-dots[1]), 200)
-                self.assertEqual(main[1] < dots[1], bool(top))
+    def test_callout_grid_is_200_200_50_and_targets_real_entities(self):
+        for raw in (self.raw, self.zero_neck()):
+            for region in ('FLIGHT','LOWER','UPPER'):
+                for top in (None, True):
+                    pair = self.pure.call('csar:callout-targets', raw, self.data, region, top)
+                    main = self.pure.call('csar:note-position', pair, top, None)
+                    note = self.pure.call('csar:note-position', pair, top, True)
+                    self.assertEqual(main[0], note[0])
+                    self.assertAlmostEqual(abs(main[1]-pair[0][1]), 200)
+                    self.assertAlmostEqual(abs(main[1]-note[1]), 200)
+                    self.assertAlmostEqual(abs(pair[0][0]-pair[1][0]), 50)
+                    self.assertEqual(main[1] < note[1], bool(top))
+                    specs = self.pure.call('csar:distribution-specs', raw, self.data, self.options)
+                    line = next(v[2] for v in specs if v[:2] == [region, top])
+                    self.assertIn(pair[1], self.pure.call('csar:stations', *line, 100))
+                    if region == 'FLIGHT':
+                        path = self.pure.call('csar:mainpath', raw, self.data[0], 12, 200, top)
+                    else:
+                        path = self.pure.call('csar:landingpath', raw, self.data[0], 12, 200, region=='UPPER', top)
+                    self.assertLess(self.pure.call('csar:point-path-distance', pair[0], path), .01)
+
+    def test_font_override_applies_only_to_new_diameter_attribute(self):
+        pure = PureLisp(self.forms)
+        sh = {'tag':'SH','style':'02-GB-VNI-Helve','text':'11'}
+        text = {'tag':'DK-KC','style':'02-GB-VNI-Helve','text':'%%C10a100'}
+        note = {'attributes':[sh,text],'definition_style':'02-GB-VNI-Helve'}
+        pure.host.update({
+            'vlax-invoke': lambda obj, method: obj['attributes'],
+            'vla-get-TagString': lambda att: att['tag'],
+            'vla-put-StyleName': lambda att, value: att.update(style=value),
+            'vla-put-TextString': lambda att, value: att.update(text=value),
+            'vla-Update': lambda obj: None,
+        })
+        for value in ('%%C10a100','T12a150'):
+            result = pure.call('csar:format-note', note, value)
+            self.assertIs(result, text)
+            self.assertEqual(text['text'], value)
+            self.assertEqual(text['style'], '01-GB-Arial')
+            self.assertEqual(sh, {'tag':'SH','style':'02-GB-VNI-Helve','text':'11'})
+            self.assertEqual(note['definition_style'], '02-GB-VNI-Helve')
+
+    def test_note_shelf_placement_is_exact_after_font_metrics_change(self):
+        target = [1500, 0]
+        destination = [1350, 200]
+        for height in (50, 62.5, 100):
+            low, high, textlow, texthigh = [20,-120], [460,90], [110,-98], [460,-30]
+            delta = self.pure.call('csar:note-shift', high, textlow, destination, height)
+            shifted = [[v[0]+delta[0], v[1]+delta[1]] for v in (low, high, textlow, texthigh)]
+            route = self.pure.call('csar:note-route', target, *shifted, height)
+            self.assertEqual(shifted[1][0], destination[0])
+            self.assertEqual(route[1][1], 200)
+            self.assertEqual(route[2][1], 200)
+            self.assertEqual(route[0][0], route[1][0])
 
     def test_rebar_symbol_can_be_diameter_or_t_without_duplicate_prefixes(self):
         for text in ('12a150','T12a150','%%C12a150'):
@@ -296,7 +341,7 @@ class RebarTests(unittest.TestCase):
                  if isinstance(f, list) and f and f[0] == 'vla-AddLeader']
         self.assertEqual(calls[0][3], 'annotation')
 
-    def test_filled_dot_geometry_has_actual_bar_diameter(self):
+    def test_filled_dot_visual_diameter_is_scaled_1_5_at_same_center(self):
         pure, props = PureLisp(self.forms), {}
         pure.host.update({
             'csar:polyline': lambda space, base, points, layer: props.update(points=points) or 'dot',
@@ -310,7 +355,8 @@ class RebarTests(unittest.TestCase):
         self.assertTrue(props['closed'])
         self.assertEqual((props[0], props[1]), (1, 1))
         centerline_radius = pure.host['distance'](*props['points'])/2
-        self.assertEqual(centerline_radius+props['width']/2, 6) # outside radius
+        self.assertEqual(centerline_radius+props['width']/2, 9) # d12 drawn as d18
+        self.assertEqual([(a+b)/2 for a,b in zip(*props['points'])], [20,30])
         self.assertEqual(centerline_radius-props['width']/2, 0) # filled to center
 
     def test_one_layer_and_input_errors(self):

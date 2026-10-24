@@ -490,19 +490,34 @@
       "Architectural tick": 100,
       "editable_in_ui": true
     },
-    "leader_route": "Vertical stem through bar/dot target, perpendicular horizontal shelf under DK-KC text; pairs share a note column",
+    "leader_route": "Vertical through real bar/dot targets, shelves 200 mm from main target and 200 mm apart, stems 50 mm apart horizontally; labels aligned by right edge after font metrics",
     "legacy_anchor_multiplier_cell": "BJ38",
     "joint_leg_mm": 200,
     "hook": {
       "length_in_bar_diameters": 2,
       "acute_return_angle_degrees": 30,
       "turn_from_incoming_degrees": 150,
-      "orientation": "inward-facing return; interpretation of reference image 2"
+      "orientation": "inward-facing return; interpretation of reference image 2",
+      "confirmed_by_user": true
     },
     "symbol_choices": [
       "%%C",
       "T"
     ],
-    "step_label_validation": "Integer count labels and positive riser input; independent of concrete neck geometry"
+    "step_label_validation": "Integer count labels and positive riser input; independent of concrete neck geometry",
+    "leader_layout_model_mm": {
+      "first_shelf_offset": 200,
+      "shelf_spacing": 200,
+      "stem_spacing": 50,
+      "label_right_edge_clearance": 100
+    },
+    "distribution_display_scale": 1.5,
+    "distribution_display_scope": "Only disk diameter is magnified; true BJ36 diameter remains in labels, grid and input checks",
+    "note_attribute_override": {
+      "tag": "DK-KC",
+      "style": "01-GB-Arial",
+      "scope": "New attribute references only; SH and block/style definitions preserved",
+      "reason": "Legacy VNI font renders correctly stored %%C as an accent"
+    }
   }
 }

@@ -145,6 +145,7 @@
           ": toggle { key = \"symbol\"; label = \"Section symbol\"; } }"
           ": toggle { key = \"steps\"; label = \"Step counts from Excel (U28 / AI23)\"; }"
           ": toggle { key = \"rebar\"; label = \"Rebar draft - bent landing anchors and transverse dots\"; }"
+          ": text { label = \"Notes: 200 / 200 / 50 mm | Dot display: x1.5\"; }"
           ": text { key = \"status\"; width = 80; }"
           ": row { : button { key = \"preview\"; label = \"Preview\"; }"
           ": button { key = \"draw\"; label = \"Draw Section\"; }"
@@ -361,5 +362,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.0 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

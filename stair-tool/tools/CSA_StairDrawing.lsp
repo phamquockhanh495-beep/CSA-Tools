@@ -729,6 +729,7 @@
                     (if (and (= (car spec) (car other)) (not (eq (cadr spec) (cadr other)))
                              (< (csar:path-distance line (nth 2 other)) (car bar)))
                       (setq issue "Top/bottom transverse bars overlap; check cover, diameters and slab thickness.")))))))))))
+  (if (not issue) (setq issue (csar:callout-error raw data options)))
   issue)
 
 (defun csar:polyline (space base points layer / coords p array object)
@@ -742,16 +743,17 @@
   (vla-put-Closed object :vlax-false)
   object)
 
-(defun csar:dot (space base point diameter layer / object)
-  ;; Two semicircular wide arcs make a filled disk, with actual outside diameter d.
+(defun csar:dot (space base point diameter layer / object draw-diameter)
+  ;; Visual disk is 1.5d; center, spacing, clearance inputs and labels retain true d.
   ;; No hatch, block, POINT display mode, or global variable is required.
-  (setq object (csar:polyline space base
-    (list (list (- (car point) (/ diameter 4.0)) (cadr point))
-          (list (+ (car point) (/ diameter 4.0)) (cadr point))) layer))
+  (setq draw-diameter (* 1.5 diameter)
+        object (csar:polyline space base
+    (list (list (- (car point) (/ draw-diameter 4.0)) (cadr point))
+          (list (+ (car point) (/ draw-diameter 4.0)) (cadr point))) layer))
   (setq csad-stage "Transverse dot: set bulges and width")
   (vla-put-Closed object :vlax-true)
   (vla-SetBulge object 0 1.0) (vla-SetBulge object 1 1.0)
-  (vla-put-ConstantWidth object (/ diameter 2.0))
+  (vla-put-ConstantWidth object (/ draw-diameter 2.0))
   object)
 
 (defun csar:leader (space base points layer dotted size style annotation / coords point array object)
@@ -791,56 +793,112 @@
 (defun csar:notation (bar choice)
   (strcat (if (= choice "1") "T" "%%C") (nth 2 bar)))
 
-(defun csar:note (space base target point bar mark dotted preview height / layer note low high attrs att textlow texthigh route)
-  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block"))
-  (setq layer (if preview "CSA-PREVIEW" "20-GB-GC")
-        note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
-          layer 1.0 (list (cons "SH" (itoa mark)) (cons "DK-KC" (csar:notation bar (csad:get 'barprefix))))))
-  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": center note / GetBoundingBox"))
-  (csad:center note (csast:p base (car point) (cadr point)))
-  (vla-GetBoundingBox note 'low 'high)
-  (setq low (vlax-safearray->list low) high (vlax-safearray->list high)
-        attrs (vlax-invoke note 'GetAttributes))
+(defun csar:format-note (note value / attrs att textatt)
+  ;; The CSA definition uses legacy VNI for DK-KC. Its glyph mapping can draw
+  ;; %%C as an accent despite the correct TextString. Override only the NEW
+  ;; DK-KC reference with the existing Arial style, then reapply the value.
+  (setq attrs (vlax-invoke note 'GetAttributes))
   (foreach att attrs
     (if (= (strcase (vla-get-TagString att)) "DK-KC")
       (progn
-        (vla-GetBoundingBox att 'textlow 'texthigh)
-        (setq textlow (vlax-safearray->list textlow) texthigh (vlax-safearray->list texthigh)))))
-  ;; Existing block/tag preflight guarantees DK-KC. All bounds are WCS here.
-  (setq route (csar:note-route (csast:p base (car target) (cadr target)) low high textlow texthigh height)
+        (vla-put-StyleName att "01-GB-Arial")
+        (vla-put-TextString att value)
+        (vla-Update att)
+        (setq textatt att))))
+  (vla-Update note)
+  textatt)
+
+(defun csar:note-shift (high textlow destination height / margin)
+  ;; destination = right edge of label / exact leader shelf level, not bbox center.
+  (setq margin (max 10.0 (* 0.2 height)))
+  (list (- (car destination) (car high))
+        (- (cadr destination) (- (cadr textlow) margin)) 0.0))
+
+(defun csar:note (space base target point bar mark dotted preview height / layer note low high textatt textlow texthigh route delta value)
+  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block")
+        value (csar:notation bar (csad:get 'barprefix))
+        layer (if preview "CSA-PREVIEW" "20-GB-GC")
+        note (csast:insert space "CSA_Sohieu-KCthep" (csast:p base (car point) (cadr point))
+          layer 1.0 (list (cons "SH" (itoa mark)) (cons "DK-KC" value))))
+  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": Arial attribute / exact shelf placement")
+        textatt (csar:format-note note value))
+  (vla-GetBoundingBox note 'low 'high)
+  (vla-GetBoundingBox textatt 'textlow 'texthigh)
+  (setq delta (csar:note-shift (vlax-safearray->list high) (vlax-safearray->list textlow)
+                             (csast:p base (car point) (cadr point)) height))
+  (vla-Move note (vlax-3d-point '(0.0 0.0 0.0)) (vlax-3d-point delta))
+  (vla-Update note)
+  (vla-GetBoundingBox note 'low 'high)
+  (vla-GetBoundingBox textatt 'textlow 'texthigh)
+  (setq low (vlax-safearray->list low) high (vlax-safearray->list high)
+        textlow (vlax-safearray->list textlow) texthigh (vlax-safearray->list texthigh)
+        route (csar:note-route (csast:p base (car target) (cadr target)) low high textlow texthigh height)
         route (mapcar '(lambda (p) (list (- (car p) (car base)) (- (cadr p) (cadr base)))) route))
   (csar:leader space base route layer dotted
     (distof (csad:get (if dotted 'dotsize 'ticksize)) 2) (csad:get 'dimstyle) note)
   note)
 
-(defun csar:note-position (raw region top dotted gap height / midpoint reference x direction offset-distance row)
-  (setq row (max (* 0.8 gap) (* 3.0 height) 200.0)
-        offset-distance (max (* 2.0 gap) (* 5.0 height)))
+(defun csar:point-path-distance (point path / result)
+  (setq result 1.0e20)
+  (while (cdr path)
+    (setq result (min result (csar:point-segment-distance point (car path) (cadr path)))
+          path (cdr path)))
+  result)
+
+(defun csar:callout-targets (raw data region top / cover transverse main axis line dots dot first second path)
+  (setq cover (car data) transverse (csar:bar (nth 8 data)))
   (if (= region "FLIGHT")
+    (setq main (csar:bar (nth (if top 7 6) data))
+          axis (csar:flight-axis raw cover top)
+          line (csar:distribution-line raw cover (car main) (car transverse) top)
+          path (csar:mainpath raw cover (car main) 200.0 top))
+    (setq main (csar:bar (nth (if (= region "UPPER") 5 4) data))
+          axis (csar:landingline raw cover (car main) (= region "UPPER") top)
+          line (csar:landing-distribution-line raw cover (car main) (car transverse) (= region "UPPER") top)
+          path (csar:landingpath raw cover (car main) 200.0 (= region "UPPER") top)))
+  (if (and (> (distance (car line) (cadr line)) 0.001)
+           (<= (/ (distance (car line) (cadr line)) (cadr transverse)) 2000))
     (progn
-      (setq midpoint (csad:mid (csad:mid (nth 2 raw) (nth 3 raw))
-                               (csad:mid (nth 14 raw) (nth 13 raw)))
-            x (- (car midpoint) (* 1.5 gap)) reference (cadr midpoint)))
-    (progn
-      (setq midpoint (csad:mid (car (csar:landingline raw 0.0 0.0 (= region "UPPER") top))
-                               (cadr (csar:landingline raw 0.0 0.0 (= region "UPPER") top)))
-            x (- (car midpoint) (* 0.75 gap))
-            reference (if (= region "UPPER")
-              (if top (cadr (nth 4 raw)) (min (cadr (nth 6 raw)) (cadr (nth 11 raw))))
-              (if top (cadar raw) (min (cadr (nth 18 raw)) (cadr (nth 22 raw))))))))
-  (setq direction (if top 1.0 -1.0))
-  (list x (+ reference (* direction (+ offset-distance (if dotted row 0.0))))))
+      (setq dots (csar:stations (car line) (cadr line) (cadr transverse))
+            dot (nth (fix (* (if (= region "FLIGHT") (if top 0.7 0.5) 0.8)
+                            (1- (length dots)))) dots)
+            first (csar:atx (car axis) (cadr axis) (- (car dot) 50.0))
+            second (csar:atx (car axis) (cadr axis) (+ (car dot) 50.0)))
+      ;; The dot leader targets an actual dot; the tick targets the actual bar.
+      ;; Preserve a true 50 mm horizontal separation, rather than offsetting a
+      ;; leader tip away from its entity or moving the dot grid.
+      (cond ((and (< (csar:point-segment-distance first (car axis) (cadr axis)) 0.01)
+                  (< (csar:point-path-distance first path) 0.01)) (list first dot))
+            ((and (< (csar:point-segment-distance second (car axis) (cadr axis)) 0.01)
+                  (< (csar:point-path-distance second path) 0.01)) (list second dot))))))
+
+(defun csar:note-position (pair top dotted)
+  ;; 200 mm from main target to first shelf; 200 mm between shelves.
+  ;; Label right edges share a column, 100 mm clear of the nearer vertical stem.
+  (list (- (min (caar pair) (caadr pair)) 100.0)
+    (+ (cadar pair) (* (if top 1.0 -1.0) (if dotted 400.0 200.0)))))
+
+(defun csar:callout-error (raw data options / issue region top enabled upper)
+  (foreach region '("FLIGHT" "LOWER" "UPPER")
+    (setq upper (= region "UPPER")
+          enabled (or (= region "FLIGHT")
+            (= 1 (csar:flag (nth (if upper 3 4) options)))
+            (= 1 (csar:flag (nth (if upper 5 6) options)))))
+    (if enabled
+      (foreach top (if (= (csar:layers data) 2) (list nil T) (list nil))
+        (if (not (csar:callout-targets raw data region top))
+          (setq issue (strcat "Cannot place leader targets 50 mm apart on the bar and a real dot in " region ". Check the region length and spacing."))))))
+  issue)
 
 (defun csar:render (space base raw data options preview gap height / cover layers top bar path mark a b side
-                                                        midpoint normal point minx miny text spec line dots dot)
+                                                        midpoint normal point minx miny text spec line dots dot pair region)
   (setq cover (nth 0 data) layers (csar:layers data) mark (fix (nth 11 data))
         minx (apply 'min (mapcar 'car raw)) miny (apply 'min (mapcar 'cadr raw)))
   (foreach top (if (= layers 2) (list nil T) (list nil))
     (setq bar (csar:bar (nth (if top 7 6) data))
           path (csar:mainpath raw cover (car bar) 200.0 top)
-          normal (csar:flight-axis raw cover top) a (car normal) b (cadr normal)
-          midpoint (csar:advance a b (* (if top 0.6 0.4) (distance a b)))
-          point (csar:note-position raw "FLIGHT" top nil gap height))
+          pair (csar:callout-targets raw data "FLIGHT" top)
+          midpoint (car pair) point (csar:note-position pair top nil))
     (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
     (csar:note space base midpoint point bar mark nil preview height)
     (setq mark (1+ mark)))
@@ -850,10 +908,9 @@
         (setq bar (csar:bar (nth (if side 5 4) data)))
         (foreach top (if (= layers 2) (list nil T) (list nil))
           (setq path (csar:landingpath raw cover (car bar) 200.0 side top)
-                normal (csar:landingline raw cover (car bar) side top)
-                midpoint (csar:advance (car normal) (cadr normal)
-                           (* 0.65 (distance (car normal) (cadr normal))))
-                point (csar:note-position raw (if side "UPPER" "LOWER") top nil gap height))
+                region (if side "UPPER" "LOWER")
+                pair (csar:callout-targets raw data region top)
+                midpoint (car pair) point (csar:note-position pair top nil))
           (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
           (csar:note space base midpoint point bar mark nil preview height)
           (setq mark (1+ mark))))))
@@ -862,10 +919,10 @@
   (foreach spec (csar:distribution-specs raw data options)
     (setq line (nth 2 spec) top (nth 1 spec)
           dots (csar:stations (car line) (cadr line) (cadr bar))
-          midpoint (nth (fix (* (if (= (car spec) "FLIGHT") (if top 0.7 0.5) 0.8)
-                               (1- (length dots)))) dots))
+          pair (csar:callout-targets raw data (car spec) top)
+          midpoint (cadr pair))
     (foreach dot dots (csar:dot space base dot (car bar) (if preview "CSA-PREVIEW" "18-GB-Reinf")))
-    (setq point (csar:note-position raw (car spec) top T gap height))
+    (setq point (csar:note-position pair top T))
     (csar:note space base midpoint point bar mark T preview height)
     (setq mark (1+ mark)))
   (setq text (strcat "REBAR DRAFT / COVER=" (rtos cover 2 0)
@@ -1023,6 +1080,7 @@
           ": toggle { key = \"symbol\"; label = \"Section symbol\"; } }"
           ": toggle { key = \"steps\"; label = \"Step counts from Excel (U28 / AI23)\"; }"
           ": toggle { key = \"rebar\"; label = \"Rebar draft - bent landing anchors and transverse dots\"; }"
+          ": text { label = \"Notes: 200 / 200 / 50 mm | Dot display: x1.5\"; }"
           ": text { key = \"status\"; width = 80; }"
           ": row { : button { key = \"preview\"; label = \"Preview\"; }"
           ": button { key = \"draw\"; label = \"Draw Section\"; }"
@@ -1239,5 +1297,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.0 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)
