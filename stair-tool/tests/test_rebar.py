@@ -1,4 +1,5 @@
 import json
+import math
 import unittest
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
@@ -47,38 +48,82 @@ class RebarTests(unittest.TestCase):
         for value in ['', '12', '12a0', '-12a150', '12aBAD']:
             self.assertIsNone(self.pure.call('csar:bar', value))
 
+    def assert_return_hook(self, previous, tip, hook, diameter):
+        incoming = [tip[i]-previous[i] for i in (0,1)]
+        tail = [hook[i]-tip[i] for i in (0,1)]
+        length = math.dist(tip, hook)
+        self.assertAlmostEqual(length, 2*diameter)
+        cosine = sum(-incoming[i]*tail[i] for i in (0,1))/(math.hypot(*incoming)*length)
+        self.assertAlmostEqual(math.degrees(math.acos(cosine)), 30)
+
+    def zero_neck(self):
+        raw = [p[:] for p in self.raw]
+        raw[2][1] = raw[1][1]
+        slope = (raw[3][1]-raw[2][1])/(raw[3][0]-raw[2][0])
+        intercept = raw[2][1]-slope*raw[2][0]-120*math.sqrt(1+slope*slope)
+        for i in (13,14): raw[i][1] = slope*raw[i][0]+intercept
+        return raw
+
     def test_excel_rebar_defaults_fit_and_cover_is_respected(self):
-        for cover in (15, 25):
-            data = self.data.copy()
-            data[0] = cover
-            self.assertIsNone(self.pure.call('csar:error', self.raw, self.concrete, data, self.options))
-            for top in (None, True):
-                path = self.pure.call('csar:mainpath', self.raw, cover, 12, 30, top)
-                self.assertAlmostEqual(abs(path[1][0]-path[0][0]), 360)
-                self.assertAlmostEqual(abs(path[-1][0]-path[-2][0]), 360)
-                self.assertGreaterEqual(self.pure.call('csar:path-clearance', path,
-                    self.pure.call('csad:cleanpoints', self.raw)), cover-0.01)
-
-    def test_excessive_anchorage_and_cover_are_not_silently_shortened(self):
-        for slot, value in [(10, 1000), (0, 80)]:
-            data = self.data.copy()
-            data[slot] = value
-            self.assertIsNotNone(self.pure.call('csar:error', self.raw, self.concrete, data, self.options))
-
-    def test_landing_bars_run_in_section_and_respect_cover(self):
-        polygon = self.pure.call('csad:cleanpoints', self.raw)
-        for cover in (15, 25):
-            for upper in (None, True):
+        for raw in (self.raw, self.zero_neck()):
+            polygon = self.pure.call('csad:cleanpoints', raw)
+            for cover in (15, 20, 25):
+                data = self.data.copy()
+                data[0] = cover
+                self.assertIsNone(self.pure.call('csar:error', raw, self.concrete, data, self.options))
                 for top in (None, True):
-                    path = self.pure.call('csar:landingpath', self.raw, cover, 12, 30, upper, top)
-                    self.assertEqual(len(path), 4)
-                    self.assertEqual(path[0][1], path[1][1])
-                    self.assertAlmostEqual(self.pure.host['distance'](path[2], path[3]), 360)
-                    self.assertEqual(path[1][0], path[2][0])
-                    slope = (path[3][1]-path[2][1])/(path[3][0]-path[2][0])
-                    self.assertAlmostEqual(slope, (self.raw[3][1]-self.raw[2][1])/3000)
-                    self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon),
-                                            cover-0.01)
+                    path = self.pure.call('csar:mainpath', raw, cover, 12, 200, top)
+                    self.assertAlmostEqual(math.dist(path[1], path[2]), 200)
+                    self.assertAlmostEqual(math.dist(path[-3], path[-2]), 200)
+                    self.assert_return_hook(path[2], path[1], path[0], 12)
+                    self.assert_return_hook(path[-3], path[-2], path[-1], 12)
+                    self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon), cover-0.01)
+
+    def test_bj38_is_superseded_and_excessive_cover_is_rejected(self):
+        for legacy_anchor in (0, 20, 30, 1000):
+            data = self.data.copy()
+            data[10] = legacy_anchor
+            self.assertIsNone(self.pure.call('csar:error', self.raw, self.concrete, data, self.options))
+        data = self.data.copy()
+        data[0] = 80
+        self.assertIsNotNone(self.pure.call('csar:error', self.raw, self.concrete, data, self.options))
+
+    def test_landing_bars_weave_into_opposite_flight_axis_and_have_hooks(self):
+        for raw in (self.raw, self.zero_neck()):
+            polygon = self.pure.call('csad:cleanpoints', raw)
+            for cover in (15, 25):
+                for upper in (None, True):
+                    for top in (None, True):
+                        path = self.pure.call('csar:landingpath', raw, cover, 12, 200, upper, top)
+                        self.assertIn(len(path), (4,5))
+                        self.assertEqual(path[0][1], path[1][1])
+                        self.assertAlmostEqual(math.dist(path[-3], path[-2]), 200)
+                        self.assert_return_hook(path[-3], path[-2], path[-1], 12)
+                        axis = self.pure.call('csar:flight-axis', raw, cover, not top)
+                        midpoint = self.pure.call('csad:mid', path[-3], path[-2])
+                        projection = self.pure.call('csad:project', midpoint, *axis)
+                        self.assertAlmostEqual(math.dist(midpoint, projection), 0)
+                        self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon), cover-0.01)
+
+    def test_joints_allow_intentional_projected_crossings(self):
+        for raw in (self.raw, self.zero_neck()):
+            top = self.pure.call('csar:mainpath', raw, 25, 12, 200, True)
+            bottom = self.pure.call('csar:mainpath', raw, 25, 12, 200, None)
+            self.assertEqual(self.pure.call('csar:path-distance', top, bottom), 0)
+            data = self.data.copy()
+            data[0] = 25
+            self.assertIsNone(self.pure.call('csar:error', raw, self.concrete, data, self.options))
+        joint = self.pure.call('csar:joint-turn', self.zero_neck(), 25, None, True)
+        self.assertEqual(joint[0], joint[1]) # direct slope/horizontal intersection
+        joint = self.pure.call('csar:joint-turn', self.raw, 25, None, True)
+        self.assertNotEqual(joint[0], joint[1]) # concrete step requires a neck
+
+    def test_flat_flight_is_rejected_before_joint_intersection_division(self):
+        raw = [p[:] for p in self.raw]
+        raw[2][1] = raw[3][1] = 0
+        raw[13][1] = raw[14][1] = -120
+        self.assertIn('positive inclined rise',
+                      self.pure.call('csar:error', raw, self.concrete, self.data, self.options))
 
     def test_landing_diameters_are_validated_independently(self):
         for slot in (4, 5):
@@ -112,15 +157,21 @@ class RebarTests(unittest.TestCase):
             self.assertTrue(all(note[6] is True for note in notes[count:])) # dot blank
             self.assertTrue(dots)
             self.assertTrue(all(dot[3] == 12 and dot[4] == '18-GB-Reinf' for dot in dots))
+            pairs = [(0,3),(1,4),(2,5)] if count == 3 else [(0,6),(1,9),(2,7),(3,10),(4,8),(5,11)]
+            for main_index, dot_index in pairs:
+                main, dot = notes[main_index], notes[dot_index]
+                self.assertEqual(main[3][0], dot[3][0]) # same text column
+                self.assertNotAlmostEqual(main[2][0], dot[2][0]) # distinct vertical stems
 
-    def test_step_counts_are_read_and_checked_against_concrete(self):
+    def test_step_counts_are_validated_as_labels_independent_of_neck(self):
         self.assertEqual(self.options[:2], [2, 12])
         self.assertIsNone(self.pure.call('csad:steps-error', self.raw, self.options))
         labels = self.pure.call('csad:step-labels', self.raw, self.options, 400)
         self.assertEqual([v[0] for v in labels], ['12 BAC', '2 BAC'])
         bad = self.options.copy()
         bad[1] = 13
-        self.assertIsNotNone(self.pure.call('csad:steps-error', self.raw, bad))
+        self.assertIsNone(self.pure.call('csad:steps-error', self.raw, bad)) # annotation input, not neck geometry
+        self.assertIsNone(self.pure.call('csad:steps-error', self.zero_neck(), self.options))
         bad[1] = 12.5
         self.assertIsNotNone(self.pure.call('csad:steps-error', self.raw, bad))
 
@@ -196,30 +247,45 @@ class RebarTests(unittest.TestCase):
         for cover in (15, 25):
             for top in (None, True):
                 for main_d in (8, 14):
-                    main = self.pure.call('csar:mainpath', self.raw, cover, main_d, 30, top)
+                    main = self.pure.call('csar:flight-axis', self.raw, cover, top)
                     axis = self.pure.call('csar:distribution-line', self.raw, cover, main_d, 12, top)
                     center = self.pure.call('csad:mid', *axis)
-                    self.assertAlmostEqual(self.pure.call('csar:point-segment-distance', center, main[2], main[3]), 6)
+                    self.assertAlmostEqual(self.pure.call('csar:point-segment-distance', center, *main), 6)
                     concrete = [self.raw[2], self.raw[3]] if top else [self.raw[14], self.raw[13]]
-                    mid = self.pure.call('csad:mid', main[2], main[3])
+                    mid = self.pure.call('csad:mid', *main)
                     self.assertAlmostEqual(self.pure.call('csar:point-segment-distance', mid, *concrete), cover)
                     for upper in (None, True):
                         landing = self.pure.call('csar:landingline', self.raw, cover, main_d, upper, top)
                         dots = self.pure.call('csar:landing-distribution-line', self.raw, cover, main_d, 12, upper, top)
                         self.assertAlmostEqual(abs(landing[0][1]-dots[0][1]), 6)
 
-    def test_leader_route_is_straight_diagonal_then_underlines_text(self):
+    def test_leader_route_is_vertical_then_perpendicular_shelf(self):
         low, high, textlow, texthigh = [0,0], [300,100], [100,35], [300,90]
         for target in ([-300,-400], [700,400]):
             route = self.pure.call('csar:note-route', target, low, high, textlow, texthigh, 62.5)
             self.assertEqual(len(route), 3)
             self.assertEqual(route[0], target)
-            self.assertNotEqual(route[0][0], route[1][0])
+            self.assertEqual(route[0][0], route[1][0])
             self.assertNotEqual(route[0][1], route[1][1])
             self.assertEqual(route[1][1], route[2][1])
             self.assertLess(route[1][1], textlow[1])
             self.assertLessEqual(min(route[1][0],route[2][0]), textlow[0])
             self.assertGreaterEqual(max(route[1][0],route[2][0]), texthigh[0])
+
+    def test_note_pairs_share_a_column_with_separate_parallel_stems(self):
+        for region in ('FLIGHT','LOWER','UPPER'):
+            for top in (None, True):
+                main = self.pure.call('csar:note-position', self.raw, region, top, None, 400, 62.5)
+                dots = self.pure.call('csar:note-position', self.raw, region, top, True, 400, 62.5)
+                self.assertEqual(main[0], dots[0])
+                self.assertGreaterEqual(abs(main[1]-dots[1]), 200)
+                self.assertEqual(main[1] < dots[1], bool(top))
+
+    def test_rebar_symbol_can_be_diameter_or_t_without_duplicate_prefixes(self):
+        for text in ('12a150','T12a150','%%C12a150'):
+            bar = self.pure.call('csar:bar', text)
+            self.assertEqual(self.pure.call('csar:notation', bar, '0'), '%%C12a150')
+            self.assertEqual(self.pure.call('csar:notation', bar, '1'), 'T12a150')
 
     def test_note_passes_its_created_block_to_leader(self):
         calls = [f for f in walk(self.pure.defs['csar:note'])

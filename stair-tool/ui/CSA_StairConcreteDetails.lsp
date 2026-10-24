@@ -179,6 +179,9 @@
 ;;; Step data: U28 (lower count), AI23 (flight count), AV21 (riser),
 ;;; Z23/Z24 (upper/lower landing bars), Z25/Z26 (upper/lower landing dots).
 (defun csad:steps-error (raw options / issue low flight riser)
+  ;; Counts label the stair; concrete neck heights are independent Excel inputs.
+  ;; A zero neck is valid even when U28 remains nonzero. Geometry checks remain
+  ;; in detail-error and rebar preflight, not in the count-label validation.
   (if (or (/= (length raw) 24) (/= (length options) 7))
     (setq issue "Reload Excel for U28/AI23/AV21 step parameters.")
     (progn
@@ -186,11 +189,7 @@
       (if (not (and (numberp low) (numberp flight) (numberp riser)
                     (>= low 0) (> flight 0) (> riser 0)
                     (= low (fix low)) (= flight (fix flight))))
-        (setq issue "Step counts must be integers (U28 >= 0, AI23 > 0) and AV21 must be positive.")
-        (if (or (> (abs (- (* (+ low flight) riser) (- (cadr (nth 4 raw)) (cadar raw)))) 0.5)
-                (> (abs (- (* low riser) (- (cadr (nth 2 raw)) (cadr (nth 1 raw))))) 0.5)
-                (> (abs (- riser (- (cadr (nth 4 raw)) (cadr (nth 3 raw))))) 0.5))
-          (setq issue "Step counts/riser do not match the concrete. Recalculate Excel and reload.")))))
+        (setq issue "Step counts must be integers (U28 >= 0, AI23 > 0) and AV21 must be positive."))))
   issue)
 
 (defun csad:step-labels (raw options gap / a b span dx dy mid result)
