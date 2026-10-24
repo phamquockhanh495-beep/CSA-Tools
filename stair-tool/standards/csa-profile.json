@@ -462,12 +462,12 @@
         "AcDimArrowheadType": 12
       }
     },
-    "main_anchor_measure": "200 mm horizontally into opposite landing layer, excluding hook and step transition",
-    "landing_anchor_measure": "200 mm along opposite flight layer, excluding hook and step transition",
+    "main_anchor_measure": "Bottom: 200 mm down into detected beam, otherwise horizontal plate joint. Top: horizontal 200 mm at 10 mm normal gap above lower landing axis.",
+    "landing_anchor_measure": "Bottom: 200 mm down into detected beam, otherwise plate joint. Top: inclined 200 mm at 10 mm normal gap inside lower flight axis.",
     "confirmation": "Latest user instruction replaces 30d with fixed 200 mm and 30-degree / 2d hook, crossed separate bars",
     "distribution_cell": "BJ36",
     "distribution_spacing": "True centre spacing along slope/horizontal landing, centered grid",
-    "distribution_axis_offset": "BJ28 + transverse diameter / 2; no longitudinal diameter term",
+    "distribution_axis_offset": "BJ28 + displayed transverse diameter / 2 = BJ28 + 1.5 * BJ36 diameter / 2",
     "step_cells": {
       "lower_count": "U28",
       "flight_count": "AI23",
@@ -490,7 +490,7 @@
       "Architectural tick": 100,
       "editable_in_ui": true
     },
-    "leader_route": "Vertical through real bar/dot targets, shelves 200 mm from main target and 200 mm apart, stems 50 mm apart horizontally; labels aligned by right edge after font metrics",
+    "leader_route": "Bottom FLIGHT notes right of stems with DK-KC left of SH circle; others left. Vertical stems, horizontal shelves, 200/200/50 mm grid.",
     "legacy_anchor_multiplier_cell": "BJ38",
     "joint_leg_mm": 200,
     "hook": {
@@ -509,15 +509,35 @@
       "first_shelf_offset": 200,
       "shelf_spacing": 200,
       "stem_spacing": 50,
-      "label_right_edge_clearance": 100
+      "label_edge_clearance": 100
     },
     "distribution_display_scale": 1.5,
-    "distribution_display_scope": "Only disk diameter is magnified; true BJ36 diameter remains in labels, grid and input checks",
+    "distribution_display_scope": "Disk diameter 1.5d and center offset by its visual radius; labels and spacing retain true BJ36 values",
     "note_attribute_override": {
       "tag": "DK-KC",
       "style": "01-GB-Arial",
       "scope": "New attribute references only; SH and block/style definitions preserved",
       "reason": "Legacy VNI font renders correctly stored %%C as an accent"
+    },
+    "top_tail_normal_gap_mm": 10,
+    "beam_supports": {
+      "detection": "Inner junction beam width and downstand >0.5 mm, independently at lower/upper end",
+      "lower_source_STT": [
+        18,
+        19,
+        20
+      ],
+      "upper_source_STT": [
+        11,
+        12,
+        10
+      ],
+      "flight_bottom_bend": "beam right face minus cover",
+      "landing_bottom_bend": "beam left face plus cover",
+      "vertical_leg_mm": 200,
+      "hook": "30-degree return, 2d",
+      "confirmed_by_user": true,
+      "geometry_scope": "Full path must fit existing concrete and cover; no shortening or added beam geometry"
     }
   }
 }

@@ -88,35 +88,72 @@ class RebarTests(unittest.TestCase):
         data[0] = 80
         self.assertIsNotNone(self.pure.call('csar:error', self.raw, self.concrete, data, self.options))
 
-    def test_landing_bars_weave_into_opposite_flight_axis_and_have_hooks(self):
-        for raw in (self.raw, self.zero_neck()):
-            polygon = self.pure.call('csad:cleanpoints', raw)
-            for cover in (15, 25):
-                for upper in (None, True):
-                    for top in (None, True):
-                        path = self.pure.call('csar:landingpath', raw, cover, 12, 200, upper, top)
-                        self.assertIn(len(path), (4,5))
-                        self.assertEqual(path[0][1], path[1][1])
-                        self.assertAlmostEqual(math.dist(path[-3], path[-2]), 200)
-                        self.assert_return_hook(path[-3], path[-2], path[-1], 12)
-                        axis = self.pure.call('csar:flight-axis', raw, cover, not top)
-                        midpoint = self.pure.call('csad:mid', path[-3], path[-2])
-                        projection = self.pure.call('csad:project', midpoint, *axis)
-                        self.assertAlmostEqual(math.dist(midpoint, projection), 0)
-                        self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon), cover-0.01)
+    def support_case(self, lower, upper):
+        raw = self.zero_neck()
+        if not lower:
+            axis = [raw[13], raw[14]]
+            point = self.pure.call('csar:aty', *axis, raw[20][1])
+            for i in (14,15,16,17,18,19): raw[i] = point.copy()
+        if not upper:
+            axis = [raw[13], raw[14]]
+            point = self.pure.call('csar:aty', *axis, raw[8][1])
+            for i in (9,10,11,12,13): raw[i] = point.copy()
+        return raw
 
-    def test_joints_allow_intentional_projected_crossings(self):
-        for raw in (self.raw, self.zero_neck()):
-            top = self.pure.call('csar:mainpath', raw, 25, 12, 200, True)
-            bottom = self.pure.call('csar:mainpath', raw, 25, 12, 200, None)
-            self.assertEqual(self.pure.call('csar:path-distance', top, bottom), 0)
+    def test_support_detection_and_bottom_bar_legs_for_zero_one_two_beams(self):
+        for lower, upper in ((False,False),(True,False),(False,True),(True,True)):
+            raw = self.support_case(lower, upper)
             data = self.data.copy()
-            data[0] = 25
+            data[0] = 20
             self.assertIsNone(self.pure.call('csar:error', raw, self.concrete, data, self.options))
-        joint = self.pure.call('csar:joint-turn', self.zero_neck(), 25, None, True)
-        self.assertEqual(joint[0], joint[1]) # direct slope/horizontal intersection
-        joint = self.pure.call('csar:joint-turn', self.raw, 25, None, True)
-        self.assertNotEqual(joint[0], joint[1]) # concrete step requires a neck
+            flight = self.pure.call('csar:mainpath', raw, 20, 12, 200, None)
+            for side, enabled in ((None,lower),(True,upper)):
+                beam = self.pure.call('csar:support-beam', raw, side)
+                self.assertEqual(bool(beam), enabled)
+                landing = self.pure.call('csar:landingpath', raw, 20, 12, 200, side, None)
+                self.assertAlmostEqual(math.dist(landing[-3],landing[-2]), 200)
+                self.assert_return_hook(landing[-3],landing[-2],landing[-1],12)
+                if enabled:
+                    self.assertAlmostEqual(landing[-3][0], beam[0]+20)
+                    self.assertEqual(landing[-3][0], landing[-2][0])
+                    self.assertEqual(landing[-3][1]-landing[-2][1], 200)
+                    bend, tip = (flight[-3],flight[-2]) if side else (flight[2],flight[1])
+                    self.assertAlmostEqual(bend[0], beam[1]-20)
+                    self.assertEqual(bend[0], tip[0])
+                    self.assertEqual(bend[1]-tip[1], 200)
+                else:
+                    self.assertNotEqual(landing[-3][0], landing[-2][0])
+            text = self.pure.call('csar:support-label', raw)
+            expected = 'Lower + Upper' if lower and upper else 'Lower only' if lower else 'Upper only' if upper else 'None'
+            self.assertTrue(text.endswith(expected))
+
+    def test_top_tails_keep_ten_mm_normal_gap_from_lower_body_axes(self):
+        for raw in (self.raw, self.zero_neck(), self.support_case(False,False)):
+            for cover in (15,25):
+                polygon = self.pure.call('csad:cleanpoints', raw)
+                main = self.pure.call('csar:mainpath', raw, cover, 12, 200, True)
+                for side in (None, True):
+                    a,b = (main[-3],main[-2]) if side else (main[2],main[1])
+                    lower_landing = self.pure.call('csar:landingline', raw, cover, 12, side, None)
+                    self.assertAlmostEqual(a[1]-lower_landing[0][1],10)
+                    self.assertAlmostEqual(b[1]-lower_landing[0][1],10)
+                    path = self.pure.call('csar:landingpath', raw, cover, 12, 200, side, True)
+                    self.assertAlmostEqual(math.dist(path[-3],path[-2]),200)
+                    self.assert_return_hook(path[-3],path[-2],path[-1],12)
+                    lower_flight = self.pure.call('csar:flight-axis', raw, cover, None)
+                    for point in path[-3:-1]:
+                        projection = self.pure.call('csad:project', point, *lower_flight)
+                        self.assertAlmostEqual(math.dist(point,projection),10)
+                    self.assertGreaterEqual(self.pure.call('csar:path-clearance',path,polygon),cover-.01)
+
+    def test_shallow_support_does_not_silently_shorten_two_hundred_mm_anchor(self):
+        raw = self.support_case(True,True)
+        raw[17][1] = raw[18][1] = -140
+        issue = self.pure.call('csar:error',raw,self.concrete,self.data,self.options)
+        self.assertIsNotNone(issue)
+        self.assertIn('does not fit',issue)
+        path = self.pure.call('csar:landingpath',raw,self.data[0],12,200,None,None)
+        self.assertEqual(path[-3][1]-path[-2][1],200)
 
     def test_flat_flight_is_rejected_before_joint_intersection_division(self):
         raw = [p[:] for p in self.raw]
@@ -157,6 +194,8 @@ class RebarTests(unittest.TestCase):
             self.assertTrue(all(note[6] is True for note in notes[count:])) # dot blank
             self.assertTrue(dots)
             self.assertTrue(all(dot[3] == 12 and dot[4] == '18-GB-Reinf' for dot in dots))
+            expected_right = [True,False,False,True,False,False] if count == 3 else [True,False,False,False,False,False,True,False,False,False,False,False]
+            self.assertEqual([bool(note[9]) for note in notes], expected_right)
             pairs = [(0,3),(1,4),(2,5)] if count == 3 else [(0,6),(1,9),(2,7),(3,10),(4,8),(5,11)]
             for main_index, dot_index in pairs:
                 main, dot = notes[main_index], notes[dot_index]
@@ -187,7 +226,7 @@ class RebarTests(unittest.TestCase):
                 for a, b in zip(dots, dots[1:]):
                     self.assertAlmostEqual(self.pure.host['distance'](a, b), 100)
                 for dot in dots:
-                    self.assertGreaterEqual(self.pure.call('csar:point-clearance', dot, polygon), cover+6-0.01)
+                    self.assertGreaterEqual(self.pure.call('csar:point-clearance', dot, polygon), cover+9-0.01)
         options = self.options.copy()
         options[5:] = ['No', 'No']
         self.assertEqual([s[0] for s in self.pure.call('csar:distribution-specs', self.raw, self.data, options)],
@@ -250,14 +289,14 @@ class RebarTests(unittest.TestCase):
                     main = self.pure.call('csar:flight-axis', self.raw, cover, top)
                     axis = self.pure.call('csar:distribution-line', self.raw, cover, main_d, 12, top)
                     center = self.pure.call('csad:mid', *axis)
-                    self.assertAlmostEqual(self.pure.call('csar:point-segment-distance', center, *main), 6)
+                    self.assertAlmostEqual(self.pure.call('csar:point-segment-distance', center, *main), 9)
                     concrete = [self.raw[2], self.raw[3]] if top else [self.raw[14], self.raw[13]]
                     mid = self.pure.call('csad:mid', *main)
                     self.assertAlmostEqual(self.pure.call('csar:point-segment-distance', mid, *concrete), cover)
                     for upper in (None, True):
                         landing = self.pure.call('csar:landingline', self.raw, cover, main_d, upper, top)
                         dots = self.pure.call('csar:landing-distribution-line', self.raw, cover, main_d, 12, upper, top)
-                        self.assertAlmostEqual(abs(landing[0][1]-dots[0][1]), 6)
+                        self.assertAlmostEqual(abs(landing[0][1]-dots[0][1]), 9)
 
     def test_leader_route_is_vertical_then_perpendicular_shelf(self):
         low, high, textlow, texthigh = [0,0], [300,100], [100,35], [300,90]
@@ -277,8 +316,8 @@ class RebarTests(unittest.TestCase):
             for region in ('FLIGHT','LOWER','UPPER'):
                 for top in (None, True):
                     pair = self.pure.call('csar:callout-targets', raw, self.data, region, top)
-                    main = self.pure.call('csar:note-position', pair, top, None)
-                    note = self.pure.call('csar:note-position', pair, top, True)
+                    main = self.pure.call('csar:note-position', pair, top, None, region=='FLIGHT' and not top)
+                    note = self.pure.call('csar:note-position', pair, top, True, region=='FLIGHT' and not top)
                     self.assertEqual(main[0], note[0])
                     self.assertAlmostEqual(abs(main[1]-pair[0][1]), 200)
                     self.assertAlmostEqual(abs(main[1]-note[1]), 200)
@@ -317,14 +356,32 @@ class RebarTests(unittest.TestCase):
         target = [1500, 0]
         destination = [1350, 200]
         for height in (50, 62.5, 100):
-            low, high, textlow, texthigh = [20,-120], [460,90], [110,-98], [460,-30]
-            delta = self.pure.call('csar:note-shift', high, textlow, destination, height)
+            low, high, textlow, texthigh = [20,-120], [650,90], [110,-98], [460,-30]
+            delta = self.pure.call('csar:note-shift', texthigh, textlow, destination, height)
             shifted = [[v[0]+delta[0], v[1]+delta[1]] for v in (low, high, textlow, texthigh)]
             route = self.pure.call('csar:note-route', target, *shifted, height)
-            self.assertEqual(shifted[1][0], destination[0])
+            self.assertEqual(shifted[3][0], destination[0])
             self.assertEqual(route[1][1], 200)
             self.assertEqual(route[2][1], 200)
             self.assertEqual(route[0][0], route[1][0])
+
+    def test_right_side_note_has_upright_text_left_of_unchanged_circle(self):
+        # Circle and SH keep their native position; only DK-KC is translated.
+        circle_left = [20,-100]
+        text_low, text_high = [140,-70], [460,0]
+        delta = self.pure.call('csar:reverse-note-shift',circle_left,text_high,62.5)
+        self.assertLess(text_high[0]+delta[0],circle_left[0])
+        self.assertEqual(delta[1:], [0,0])
+        text_low = [text_low[i]+delta[i] for i in (0,1)]
+        text_high = [text_high[i]+delta[i] for i in (0,1)]
+        target, dest = [0,0], [100,-200]
+        low, high = [text_low[0],-100], [120,0]
+        shift = self.pure.call('csar:note-shift',low,text_low,dest,62.5)
+        shifted = [[v[0]+shift[0],v[1]+shift[1]] for v in (low,high,text_low,text_high)]
+        route = self.pure.call('csar:note-route',target,*shifted,62.5)
+        self.assertEqual(route[1][1],-200)
+        self.assertGreater(route[2][0], route[1][0])
+        self.assertLess(shifted[3][0],circle_left[0]+shift[0])
 
     def test_rebar_symbol_can_be_diameter_or_t_without_duplicate_prefixes(self):
         for text in ('12a150','T12a150','%%C12a150'):

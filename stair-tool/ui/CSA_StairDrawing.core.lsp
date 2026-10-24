@@ -89,6 +89,7 @@
     (csad:cell cells 25 26) (csad:cell cells 26 26)))
   (csad:put 'rebar-data rebar-data)
   (csad:put 'section-options section-options)
+  (csad:put 'supportinfo (csar:support-label rawpoints))
   (csad:put 'rawpoints rawpoints)
   (csad:put 'concrete-parameters metadata)
   (csad:put 'points points)
@@ -146,6 +147,7 @@
           ": toggle { key = \"steps\"; label = \"Step counts from Excel (U28 / AI23)\"; }"
           ": toggle { key = \"rebar\"; label = \"Rebar draft - bent landing anchors and transverse dots\"; }"
           ": text { label = \"Notes: 200 / 200 / 50 mm | Dot display: x1.5\"; }"
+          ": text { key = \"supportinfo\"; width = 80; }"
           ": text { key = \"status\"; width = 80; }"
           ": row { : button { key = \"preview\"; label = \"Preview\"; }"
           ": button { key = \"draw\"; label = \"Draw Section\"; }"
@@ -158,7 +160,7 @@
       (if (and (> id 0) (new_dialog "csad_ui" id))
         (progn
           (set_tile "path" (cond ((csad:get 'path)) (T "Open workbook in Excel, then Load Excel.")))
-          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "steps" "rebar" "status" "titleheight" "dimgap" "dotsize" "ticksize" "barprefix")
+          (foreach name '("title" "section" "bottom" "top" "dims" "details" "levels" "symbol" "steps" "rebar" "status" "titleheight" "dimgap" "dotsize" "ticksize" "barprefix" "supportinfo")
             (set_tile name (csad:get (read name))))
           (start_list "dimstyle") (foreach name csad-styles (add_list name)) (end_list)
           (setq index (vl-position (csad:get 'dimstyle) csad-styles))
@@ -347,7 +349,7 @@
       (status . "Load current Excel coordinates to begin."))))
   ;; Migrate cached state from earlier APPLOAD versions without fabricating
   ;; missing detail metadata. Reload Excel once to populate that metadata.
-  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400") (rebar . "0") (steps . "1") (dotsize . "60") (ticksize . "100") (barprefix . "0"))
+  (foreach entry '((details . "1") (titleheight . "200") (dimgap . "400") (rebar . "0") (steps . "1") (dotsize . "60") (ticksize . "100") (barprefix . "0") (supportinfo . "Beam supports: Auto from Excel (reload)"))
     (if (not (assoc (car entry) *csad-state*)) (csad:put (car entry) (cdr entry))))
   (setq action 1)
   (while (and action (/= action 0))
@@ -362,5 +364,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.2 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

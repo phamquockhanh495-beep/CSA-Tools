@@ -46,7 +46,7 @@
   (list (+ (car a) (* amount (/ (- (car b) (car a)) span)))
         (+ (cadr a) (* amount (/ (- (cadr b) (cadr a)) span)))))
 
-;;; v5 joint: separate flight/landing bars weave into the opposite layer.
+;;; Separate bodies: lower anchors enter end beams when present; upper tails keep a 10 mm gap.
 ;;; Straight leg is fixed at 200 model mm; return hook is 2d at 30 degrees.
 (defun csar:flight-axis (raw cover top)
   (if top
@@ -56,13 +56,27 @@
 (defun csar:aty (a b y)
   (list (+ (car a) (* (- y (cadr a)) (/ (- (car b) (car a)) (- (cadr b) (cadr a))))) y))
 
-(defun csar:joint-turn (raw cover upper flighttop / axis landing y direct middle x)
-  (setq axis (csar:flight-axis raw cover flighttop)
-        landing (csar:landingline raw cover 0 upper (not flighttop))
-        y (cadar landing) direct (csar:aty (car axis) (cadr axis) y)
+(defun csar:support-beam (raw upper / left right bottom slab)
+  ;; Inner downstand at each flight/landing junction, not the outer landing beam.
+  (if upper
+    (setq left (car (nth 11 raw)) right (car (nth 10 raw))
+          bottom (cadr (nth 10 raw)) slab (cadr (nth 9 raw)))
+    (setq left (car (nth 18 raw)) right (car (nth 17 raw))
+          bottom (cadr (nth 18 raw)) slab (cadr (nth 19 raw))))
+  (if (and (> (- right left) 0.5) (> (- slab bottom) 0.5))
+    (list left right bottom slab)))
+
+(defun csar:support-label (raw / lower upper)
+  (if (/= (length raw) 24) "Beam supports: requires 24-row section data"
+    (progn
+      (setq lower (csar:support-beam raw nil) upper (csar:support-beam raw T))
+      (strcat "Beam supports (Excel): "
+        (cond ((and lower upper) "Lower + Upper") (lower "Lower only")
+              (upper "Upper only") (T "None"))))))
+
+(defun csar:joint-turn-at (raw cover upper flighttop axis y / direct middle x)
+  (setq direct (csar:aty (car axis) (cadr axis) y)
         middle (csad:mid (car axis) (cadr axis)))
-  ;; At a continuous junction use the true line intersection, as in the sample.
-  ;; A stepped concrete neck may make that extrapolation leave the concrete.
   (if (>= (csar:path-clearance (list direct middle) (csad:cleanpoints raw)) (- cover 0.01))
     (list direct direct)
     (progn
@@ -70,6 +84,13 @@
         (if flighttop (+ (car (nth 4 raw)) cover) (- (car (nth 10 raw)) cover))
         (if flighttop (+ (car (nth 1 raw)) cover) (- (car (nth 15 raw)) cover))))
       (list (list x y) (csar:atx (car axis) (cadr axis) x)))))
+
+(defun csar:joint-turn (raw cover upper flighttop / axis landing y)
+  (setq axis (csar:flight-axis raw cover flighttop)
+        landing (csar:landingline raw cover 0 upper (not flighttop))
+        y (+ (cadar landing) (if flighttop 10.0 0.0)))
+  ;; Upper flight tails stop 10 mm inside the lower landing-body axis.
+  (csar:joint-turn-at raw cover upper flighttop axis y))
 
 (defun csar:hookpoint (previous tip diameter polygon / span dx dy leg c first second)
   (setq span (distance previous tip) dx (/ (- (car tip) (car previous)) span)
@@ -83,23 +104,41 @@
   (if (> (csar:path-clearance (list tip second) polygon)
          (csar:path-clearance (list tip first) polygon)) second first))
 
-(defun csar:mainpath (raw cover diameter anchor-length top / lower upper lefttip righttip polygon)
-  (setq lower (csar:joint-turn raw cover nil top) upper (csar:joint-turn raw cover T top)
-        lefttip (list (- (caar lower) anchor-length) (cadar lower))
-        righttip (list (+ (caar upper) anchor-length) (cadar upper))
-        polygon (csad:cleanpoints raw))
-  (csad:cleanpoints (list (csar:hookpoint (car lower) lefttip diameter polygon)
-    lefttip (car lower) (cadr lower) (cadr upper) (car upper) righttip
-    (csar:hookpoint (car upper) righttip diameter polygon))))
+(defun csar:main-end (raw cover diameter anchor-length upper top / beam axis bend tip joint polygon)
+  (setq polygon (csad:cleanpoints raw))
+  (if (and (not top) (setq beam (csar:support-beam raw upper)))
+    (progn
+      ;; Flight bottom approaches the right cover line of the supporting beam.
+      (setq axis (csar:flight-axis raw cover nil)
+            bend (csar:atx (car axis) (cadr axis) (- (nth 1 beam) cover))
+            tip (list (car bend) (- (cadr bend) anchor-length)))
+      (list (csar:hookpoint bend tip diameter polygon) tip bend))
+    (progn
+      (setq joint (csar:joint-turn raw cover upper top)
+            tip (list (+ (caar joint) (* (if upper 1.0 -1.0) anchor-length)) (cadar joint)))
+      (list (csar:hookpoint (car joint) tip diameter polygon) tip (car joint) (cadr joint)))))
 
-(defun csar:landingpath (raw cover diameter anchor-length upper top / axis joint edge knee tip polygon)
-  (setq axis (csar:flight-axis raw cover (not top))
-        joint (csar:joint-turn raw cover upper (not top))
-        edge (csar:landingline raw cover diameter upper top)
-        edge (if upper (cadr edge) (car edge)) knee (cadr joint)
-        tip (csar:advance knee (csad:mid (car axis) (cadr axis)) anchor-length)
-        polygon (csad:cleanpoints raw))
-  (csad:cleanpoints (list edge (car joint) knee tip (csar:hookpoint knee tip diameter polygon))))
+(defun csar:mainpath (raw cover diameter anchor-length top)
+  (csad:cleanpoints (append
+    (csar:main-end raw cover diameter anchor-length nil top)
+    (reverse (csar:main-end raw cover diameter anchor-length T top)))))
+
+(defun csar:landingpath (raw cover diameter anchor-length upper top / axis joint edge knee tip polygon beam bend)
+  (setq edge (csar:landingline raw cover diameter upper top)
+        edge (if upper (cadr edge) (car edge)) polygon (csad:cleanpoints raw))
+  (if (and (not top) (setq beam (csar:support-beam raw upper)))
+    (progn
+      ;; Separate left cover line leaves distinct landing/flight beam legs.
+      (setq bend (list (+ (car beam) cover) (cadr edge))
+            tip (list (car bend) (- (cadr bend) anchor-length)))
+      (csad:cleanpoints (list edge bend tip (csar:hookpoint bend tip diameter polygon))))
+    (progn
+      ;; Top landing tails follow a line 10 mm normal inside the lower flight axis.
+      (setq axis (csar:flight-axis raw (+ cover (if top 10.0 0.0)) (not top))
+            joint (csar:joint-turn-at raw cover upper (not top) axis (cadr edge))
+            knee (cadr joint)
+            tip (csar:advance knee (csad:mid (car axis) (cadr axis)) anchor-length))
+      (csad:cleanpoints (list edge (car joint) knee tip (csar:hookpoint knee tip diameter polygon))))))
 
 (defun csar:flag (value / s)
   (cond ((numberp value) (cond ((= value 1) 1) ((= value 0) 0)))
@@ -119,9 +158,11 @@
           index (1+ index)))
   (reverse result))
 
+(defun csar:display-diameter (diameter) (* 1.5 diameter))
+
 (defun csar:distribution-line (raw cover main-d diameter top / line radius dx dy span)
-  ;; User convention: longitudinal axis at cover, dot axis another d_transverse/2 inside.
-  (setq radius (+ cover (/ diameter 2.0)))
+  ;; Visual disk is tangent to the longitudinal axis: offset by displayed d/2.
+  (setq radius (+ cover (/ (csar:display-diameter diameter) 2.0)))
   (if top
     (setq line (csar:offset (nth 2 raw) (nth 3 raw) (- 0.0 radius)))
     (setq line (csar:offset (nth 14 raw) (nth 13 raw) radius)))
@@ -132,7 +173,7 @@
         (list (- (caadr line) (* radius dx)) (- (cadadr line) (* radius dy)))))
 
 (defun csar:landing-distribution-line (raw cover main-d diameter upper top)
-  (csar:landingline raw (+ cover (/ diameter 2.0)) diameter upper top))
+  (csar:landingline raw (+ cover (/ (csar:display-diameter diameter) 2.0)) diameter upper top))
 
 (defun csar:point-clearance (point polygon / edges result)
   (setq edges (append polygon (list (car polygon))) result 1.0e20)
@@ -241,7 +282,7 @@
               (setq radius cover
                     path (csar:mainpath raw cover (car (if value top bottom)) 200.0 value))
               (if (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01))
-                (setq issue "Flight joint: 200 mm legs / 30-degree 2d hooks do not fit concrete/cover; no tail was shortened.")))
+                (setq issue "Flight joint: 200 mm beam/non-beam anchor or 2d hook does not fit concrete/cover. Check beam depth and neck geometry.")))
             ;; Full paths intentionally cross at the joints. Check only body
             ;; axes for layer overlap; every hooked path is checked for cover.
             (if (and (= layers 2)
@@ -257,7 +298,7 @@
                   (foreach value (if (= layers 2) (list nil T) (list nil))
                     (setq path (csar:landingpath raw cover (car bar) 200.0 side value))
                     (if (< (csar:path-clearance path (csad:cleanpoints raw)) (- radius 0.01))
-                      (setq issue "Landing joint: 200 mm leg / 30-degree 2d hook does not fit concrete/cover. Check BJ32/BJ33.")))
+                      (setq issue "Landing joint: 200 mm beam/non-beam anchor or 2d hook does not fit concrete/cover. Check the support dimensions and BJ32/BJ33.")))
                   (if (and (= layers 2)
                            (< (csar:path-distance
                                 (csar:landingline raw cover (car bar) side nil)
@@ -267,14 +308,14 @@
               (progn
                 (setq bar (csar:bar (nth 8 data)) specs (csar:distribution-specs raw data options))
                 (foreach spec specs
-                  (setq line (nth 2 spec) radius (+ cover (/ (car bar) 2.0)))
+                  (setq line (nth 2 spec) radius (+ cover (/ (csar:display-diameter (car bar)) 2.0)))
                   (if (or (<= (distance (car line) (cadr line)) 0.001)
                           (> (/ (distance (car line) (cadr line)) (cadr bar)) 2000)
                           (< (csar:path-clearance line (csad:cleanpoints raw)) (- radius 0.01)))
                     (setq issue "Transverse bars do not fit cover, or exceed 2000 dots per region/layer. Check BJ36 and slab geometry."))
                   (foreach other specs
                     (if (and (= (car spec) (car other)) (not (eq (cadr spec) (cadr other)))
-                             (< (csar:path-distance line (nth 2 other)) (car bar)))
+                             (< (csar:path-distance line (nth 2 other)) (csar:display-diameter (car bar))))
                       (setq issue "Top/bottom transverse bars overlap; check cover, diameters and slab thickness.")))))))))))
   (if (not issue) (setq issue (csar:callout-error raw data options)))
   issue)
@@ -291,9 +332,9 @@
   object)
 
 (defun csar:dot (space base point diameter layer / object draw-diameter)
-  ;; Visual disk is 1.5d; center, spacing, clearance inputs and labels retain true d.
+  ;; Visual disk is 1.5d; axis offset uses that visual radius, labels retain true d.
   ;; No hatch, block, POINT display mode, or global variable is required.
-  (setq draw-diameter (* 1.5 diameter)
+  (setq draw-diameter (csar:display-diameter diameter)
         object (csar:polyline space base
     (list (list (- (car point) (/ draw-diameter 4.0)) (cadr point))
           (list (+ (car point) (/ draw-diameter 4.0)) (cadr point))) layer))
@@ -332,7 +373,7 @@
   ;; Horizontal leg under the diameter/spacing attribute, not through its center.
   ;; Vertical stem through the target, then a perpendicular horizontal shelf.
   (setq margin (max 10.0 (* 0.2 height)) y (- (cadr textlow) margin))
-  (if (< (car target) (/ (+ (car low) (car high)) 2.0))
+  (if (< (car target) (/ (+ (car textlow) (car texthigh)) 2.0))
     (setq far (car texthigh))
     (setq far (car textlow)))
   (list target (list (car target) y) (list far y)))
@@ -355,13 +396,25 @@
   (vla-Update note)
   textatt)
 
-(defun csar:note-shift (high textlow destination height / margin)
-  ;; destination = right edge of label / exact leader shelf level, not bbox center.
+(defun csar:reverse-note-shift (low texthigh height / gap)
+  (setq gap (max 10.0 (* 0.2 height)))
+  (list (- (car low) gap (car texthigh)) 0.0 0.0))
+
+(defun csar:reverse-note (note textatt height / low high textlow texthigh delta)
+  (vla-GetBoundingBox note 'low 'high)
+  (vla-GetBoundingBox textatt 'textlow 'texthigh)
+  (setq delta (csar:reverse-note-shift (vlax-safearray->list low)
+                                      (vlax-safearray->list texthigh) height))
+  (vla-Move textatt (vlax-3d-point '(0.0 0.0 0.0)) (vlax-3d-point delta))
+  (vla-Update textatt) (vla-Update note))
+
+(defun csar:note-shift (edge textlow destination height / margin)
+  ;; destination = selected label edge / exact shelf level, never bbox center.
   (setq margin (max 10.0 (* 0.2 height)))
-  (list (- (car destination) (car high))
+  (list (- (car destination) (car edge))
         (- (cadr destination) (- (cadr textlow) margin)) 0.0))
 
-(defun csar:note (space base target point bar mark dotted preview height / layer note low high textatt textlow texthigh route delta value)
+(defun csar:note (space base target point bar mark dotted preview height right / layer note low high textatt textlow texthigh route delta value)
   (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block")
         value (csar:notation bar (csad:get 'barprefix))
         layer (if preview "CSA-PREVIEW" "20-GB-GC")
@@ -369,9 +422,10 @@
           layer 1.0 (list (cons "SH" (itoa mark)) (cons "DK-KC" value))))
   (setq csad-stage (strcat "Rebar mark " (itoa mark) ": Arial attribute / exact shelf placement")
         textatt (csar:format-note note value))
+  (if right (csar:reverse-note note textatt height))
   (vla-GetBoundingBox note 'low 'high)
   (vla-GetBoundingBox textatt 'textlow 'texthigh)
-  (setq delta (csar:note-shift (vlax-safearray->list high) (vlax-safearray->list textlow)
+  (setq delta (csar:note-shift (vlax-safearray->list (if right textlow texthigh)) (vlax-safearray->list textlow)
                              (csast:p base (car point) (cadr point)) height))
   (vla-Move note (vlax-3d-point '(0.0 0.0 0.0)) (vlax-3d-point delta))
   (vla-Update note)
@@ -419,10 +473,11 @@
             ((and (< (csar:point-segment-distance second (car axis) (cadr axis)) 0.01)
                   (< (csar:point-path-distance second path) 0.01)) (list second dot))))))
 
-(defun csar:note-position (pair top dotted)
+(defun csar:note-position (pair top dotted right)
   ;; 200 mm from main target to first shelf; 200 mm between shelves.
   ;; Label right edges share a column, 100 mm clear of the nearer vertical stem.
-  (list (- (min (caar pair) (caadr pair)) 100.0)
+  (list (if right (+ (max (caar pair) (caadr pair)) 100.0)
+                  (- (min (caar pair) (caadr pair)) 100.0))
     (+ (cadar pair) (* (if top 1.0 -1.0) (if dotted 400.0 200.0)))))
 
 (defun csar:callout-error (raw data options / issue region top enabled upper)
@@ -445,9 +500,9 @@
     (setq bar (csar:bar (nth (if top 7 6) data))
           path (csar:mainpath raw cover (car bar) 200.0 top)
           pair (csar:callout-targets raw data "FLIGHT" top)
-          midpoint (car pair) point (csar:note-position pair top nil))
+          midpoint (car pair) point (csar:note-position pair top nil (not top)))
     (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
-    (csar:note space base midpoint point bar mark nil preview height)
+    (csar:note space base midpoint point bar mark nil preview height (not top))
     (setq mark (1+ mark)))
   (foreach side (list nil T)
     (if (= 1 (csar:flag (nth (if side 3 4) options)))
@@ -457,11 +512,11 @@
           (setq path (csar:landingpath raw cover (car bar) 200.0 side top)
                 region (if side "UPPER" "LOWER")
                 pair (csar:callout-targets raw data region top)
-                midpoint (car pair) point (csar:note-position pair top nil))
+                midpoint (car pair) point (csar:note-position pair top nil nil))
           (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
-          (csar:note space base midpoint point bar mark nil preview height)
+          (csar:note space base midpoint point bar mark nil preview height nil)
           (setq mark (1+ mark))))))
-  ;; One mark per distribution region/layer, every dot has the actual BJ36 diameter.
+  ;; One mark per distribution region/layer; displayed dots are 1.5 times BJ36.
   (setq bar (csar:bar (nth 8 data)))
   (foreach spec (csar:distribution-specs raw data options)
     (setq line (nth 2 spec) top (nth 1 spec)
@@ -469,13 +524,13 @@
           pair (csar:callout-targets raw data (car spec) top)
           midpoint (cadr pair))
     (foreach dot dots (csar:dot space base dot (car bar) (if preview "CSA-PREVIEW" "18-GB-Reinf")))
-    (setq point (csar:note-position pair top T))
-    (csar:note space base midpoint point bar mark T preview height)
+    (setq point (csar:note-position pair top T (and (= (car spec) "FLIGHT") (not top))))
+    (csar:note space base midpoint point bar mark T preview height (and (= (car spec) "FLIGHT") (not top)))
     (setq mark (1+ mark)))
   (setq text (strcat "REBAR DRAFT / COVER=" (rtos cover 2 0)
-    " / JOINT LEGS=200 mm / RETURN HOOK=30 deg, 2d"))
+    " / ANCHORS=200 mm / TOP TAIL GAP=10 / RETURN HOOK=30 deg, 2d"))
   (csast:text space text (csast:p base minx (- miny (* 5.0 gap))) height
     (if preview "CSA-PREVIEW" "20-GB-GC") "01-GB-Arial")
-  (csast:text space "CROSSED JOINTS IN SECTION / BEND RADII AND FABRICATION SCHEDULE NOT GENERATED"
+  (csast:text space "JOINT DETAIL DRAFT / BEND RADII AND FABRICATION SCHEDULE NOT GENERATED"
     (csast:p base minx (- miny (* 5.0 gap) (* 2.0 height))) height
     (if preview "CSA-PREVIEW" "20-GB-GC") "01-GB-Arial"))

@@ -100,33 +100,38 @@ Gửi ảnh gồm giao diện sau Load Excel và mặt cắt sau Preview/Draw Se
 
 Nút **Plan (next phase)** được vô hiệu hóa: bảng tọa độ đang có là đường bao mặt cắt, chưa chứa dữ liệu mặt bằng 2 vế/3 vế. Đã có tùy chọn tim thép dọc và thép chiếu nghỉ ở giai đoạn kiểm tra, chưa có thống kê hoặc móc/uốn hoàn chỉnh. Không lấy các thanh mẫu ở tiện ích kiểm tra để thay cho thiết kế. Bản này chưa triển khai toàn bộ cầu thang 2/3 vế.
 
-## Bản v5.1: nút đan chéo, móc 30°/2d, leader vuông góc
+## Bản v5.2: nút đan chéo, móc 30°/2d, leader vuông góc
 
-Sau APPLOAD, command line phải báo **rebar-detail v5.1**. Load / Reload Excel, bật Rebar draft, chọn **Rebar symbol = %%C (Diameter) hoặc T**, rồi Preview ở vùng trống.
+Sau APPLOAD, command line phải báo **rebar-detail v5.2**. Load / Reload Excel, bật Rebar draft, chọn **Rebar symbol = %%C (Diameter) hoặc T**, rồi Preview ở vùng trống.
 
-### Ba sửa đổi từ hình phản hồi v5.1
+### Bốn chỉnh sửa từ hình phản hồi v5.2
 
-1. **Ký hiệu đường kính:** ảnh Properties cho thấy DK-KC lưu đúng `%%C10a100`, trong khi hình vẽ là dấu nháy. Attribute gốc dùng `02-GB-VNI-Helve` / `VNI-Helve-Condense.TTF`, có bảng glyph cũ. V5.1 đổi **riêng attribute DK-KC của ghi chú mới** sang style có sẵn `01-GB-Arial` rồi gán lại nội dung `%%C...` hoặc `T...`. Số hiệu SH, định nghĩa block, font/style toàn bản vẽ và ghi chú cũ được giữ nguyên. Cần kiểm tra glyph thực tế trong AutoCAD sau khi vẽ mới.
-2. **Cụm leader 200–200–50 mm theo hình 2:** từ điểm chỉ thép dọc đến đường ngang ghi chú đầu là 200 mm theo phương đứng; đường ngang ghi chú thứ hai cách đường đầu 200 mm; hai nhánh đứng cách nhau đúng 50 mm theo phương ngang. Điểm chỉ Dot blank vẫn trúng một chấm thật; điểm tick nằm trên thanh dọc. Căn vị trí sau khi đổi font bằng bounding box thực tế, không lấy tâm block làm mốc cao độ của đường ngang. Các ghi chú cùng cặp căn theo mép phải, chừa 100 mm tới nhánh đứng gần nhất. Khoảng cách này độc lập với Dimension spacing dùng cho dim bê tông.
-3. **Chấm thép phóng hiển thị 1,5 lần:** d10 vẽ chấm có đường kính ngoài 15 mm, d12 vẽ 18 mm. Tâm chấm, bước thép, giá trị đường kính trong ghi chú và các kiểm tra đầu vào vẫn dùng số thật từ BJ36. Phóng hiển thị không làm dịch lưới hoặc đổi thông số cốt thép trong Excel.
+1. **Ký hiệu lớp dưới vế xiên đặt sang phải.** Cả ghi chú thanh dọc và ghi chú chấm của lớp dưới FLIGHT chuyển sang phía phải các nhánh đứng. Vòng SH ở ngoài cùng bên phải, text DK-KC nằm bên trái vòng, đúng hình 2. Chỉ di chuyển attribute DK-KC trong block tham chiếu mới, không Mirror chữ/block hoặc đổi MIRRTEXT. Ghi chú các vùng khác giữ cách bố trí bên trái.
+2. **Tâm chấm cách đường thép dọc bằng bán kính hiển thị.** Đường kính chấm vẫn phóng 1,5 lần, nên khoảng cách vuông góc mới là `1,5 × d / 2`. D10: chấm 15 mm, tâm cách đường dọc 7,5 mm; d12: chấm 18 mm, cách 9 mm. Mép chấm tiếp tuyến với đường thép dọc. Tên đường kính và bước thép vẫn dùng số thật BJ36.
+3. **Đầu có dầm: neo lớp dưới vào dầm.** Tự nhận từng dầm đầu dưới/trên từ bề rộng và phần nhô xuống của đường bao Excel. Thép lớp dưới vế xiên bẻ xuống tại phía phải dầm (cách biên cover), thép lớp dưới bản ngang bẻ xuống tại phía trái dầm (cách biên cover). Đoạn đứng **200 mm từ góc bẻ**, kết thúc bằng móc quay ngược **30° dài 2d**. Nếu chỉ một đầu có dầm thì chỉ đầu đó đổi cấu tạo; đầu không dầm giữ neo nối bản. UI báo **Beam supports (Excel): Lower only / Upper only / Lower + Upper / None** sau Reload Excel.
+4. **Đoạn neo lớp trên cách tim lớp dưới 10 mm**, theo xác nhận của người dùng. Đoạn ngang vào chiếu nghỉ nâng lên 10 mm so với tim lớp dưới; đoạn xiên vào vế thang dịch vào trong 10 mm đo vuông góc với tim lớp dưới. Thân thép trên/dưới vẫn theo cover; chỉ đoạn neo thay đổi vị trí.
+
+Dầm được nhận tại hai nút tiếp giáp vế xiên, không lấy các dầm ở mép ngoài xa của chiếu nghỉ làm dầm đầu vế. Với hợp đồng 24 điểm hiện có: dầm dưới dùng cặp STT 18/19 và cao độ bản STT 20; dầm trên dùng STT 11/12 và cao độ bản STT 10. Chỉ nhận khi bề rộng và độ nhô đều lớn hơn 0,5 mm. Tiện ích không thêm bê tông dầm; dùng đúng đường bao đã đọc. Kiểm tra toàn bộ đường thanh/móc với bê tông và cover; nếu đoạn đứng 200 mm hoặc móc không đủ chỗ, báo lỗi và giữ preview trước, không tự rút ngắn.
+
+Các bản sửa v5.1 vẫn có: attribute DK-KC của ghi chú mới dùng Arial để hiển thị đúng `%%C`, lựa chọn T/%%C, bố trí leader 200–200–50 mm theo các đường ngang thực tế. Hướng phải/bên trái được căn theo mép text tương ứng sau khi đặt font.
 
 ### Cấu tạo nút theo hình mới
 
 - Thép vế xiên và thép chiếu nghỉ/chiếu tới là **các thanh riêng**, có số hiệu riêng. Với hai lớp và cả hai chiếu nghỉ bật, có sáu tim thanh đại diện: hai vế xiên, hai chiếu nghỉ dưới và hai chiếu nghỉ trên.
-- Các thanh đan sang lớp đối diện tại nút: lớp trên của vế xiên neo vào vùng lớp dưới chiếu nghỉ, lớp trên chiếu nghỉ đi vào vùng lớp dưới vế xiên; lớp dưới thực hiện tương ứng.
-- Đoạn neo **200 mm cố định**, không nhân đường kính. Đối với vế xiên, đo 200 mm trên đoạn ngang vào chiếu nghỉ; đối với thanh chiếu nghỉ, đo 200 mm theo đoạn xiên vào vế thang. Không cộng đoạn đứng chuyển tiếp hoặc móc vào 200 mm này.
+- Lớp trên neo vào vùng lớp dưới nhưng giữ khoảng cách tim 10 mm. Lớp dưới neo xuống dầm ở đầu có dầm; đầu không có dầm giữ kiểu nối sang bản bên cạnh.
+- Đoạn neo **200 mm cố định**, không nhân đường kính. Đoạn lớp dưới neo vào dầm đo theo phương đứng; các đoạn nối bản còn lại đo theo phương ngang hoặc dọc trục xiên tương ứng. Không cộng móc hoặc đoạn chuyển tiếp giật cấp vào 200 mm này.
 - Móc cuối dài **2 × đường kính thanh**, đã được người dùng xác nhận là móc **quay ngược**, tạo góc nhọn 30° với hướng ngược của đoạn neo (đổi hướng 150°). Móc quay vào phía trong bê tông. Ví dụ d12: neo 200 mm, móc 24 mm; d14: neo vẫn 200 mm, móc 28 mm.
 - Với nút nối liên tục, dùng giao điểm thật của tim xiên và tim ngang để tạo nút đan. Nếu kéo dài tim xiên như vậy sẽ ra ngoài bê tông do đoạn giật cấp, đường thanh giữ đoạn chuyển tiếp trong phần bê tông hiện có. Không thay đổi đường bao bê tông để ép thanh vào hình tham khảo.
 
 **BJ38 đã được thay thế bởi quy tắc 200 mm này.** Ô vẫn được đọc để tương thích workbook, nhưng đổi 20/30d trong BJ38 không còn đổi chiều dài neo của v5.
 
-Các đường thanh có thể giao nhau/trùng một phần trong hình chiếu tại nút đan. V5 cho phép giao nhau có chủ ý này, kiểm tra lớp ở phần thân bản, đồng thời kiểm tra từng đường thanh và móc nằm trong bê tông theo quy ước tim đã chốt. Nếu 200 mm hoặc móc 2d không đủ chỗ, tiện ích báo lỗi và giữ preview cũ; không tự cắt ngắn. Bán kính uốn và thống kê gia công chưa được tạo.
+Các đường thanh có thể giao nhau trong hình chiếu tại nút nối. Kiểm tra khoảng cách lớp ở phần thân bản và từng đường thanh/móc trong bê tông; các đoạn neo lớp trên được tách khỏi tim thép dưới 10 mm theo quy tắc mới. Nếu 200 mm hoặc móc 2d không đủ chỗ, tiện ích báo lỗi và giữ preview cũ; không tự cắt ngắn. Bán kính uốn và thống kê gia công chưa được tạo.
 
 ### Leader và ký hiệu thép
 
 Leader là **LEADER loại đoạn thẳng** (AcLeaderType 0), gồm nhánh **đứng qua đúng điểm chỉ thanh/chấm**, rồi nhánh **ngang dưới text DK-KC**. Hai nhánh vuông góc; các nhánh đứng trong một cặp song song và tách nhau nhờ chọn hai vị trí chỉ khác nhau.
 
-Ghi chú thép dọc và thép chấm của cùng vùng/lớp được đặt cùng cột theo mép phải, thành hai hàng: lớp trên đặt phía trên điểm chỉ, lớp dưới đặt phía dưới. Khoảng cách đường ngang cố định 200 mm như phần trên; AutoCAD lấy bounding box sau khi đặt font để căn đúng các đường ngang. Đây là bố trí cho mẫu hiện có, chưa phải thuật toán tránh mọi va chạm với các đối tượng khác trong DWG.
+Ghi chú thép dọc và thép chấm của cùng vùng/lớp được đặt cùng cột theo mép text phía nhánh đứng, thành hai hàng: lớp trên đặt phía trên điểm chỉ, lớp dưới đặt phía dưới. Khoảng cách đường ngang cố định 200 mm như phần trên; AutoCAD lấy bounding box sau khi đặt font để căn đúng các đường ngang. Đây là bố trí cho mẫu hiện có, chưa phải thuật toán tránh mọi va chạm với các đối tượng khác trong DWG.
 
 - Thanh trong mặt cắt dùng **Architectural tick**; chấm thép dùng **Dot blank**.
 - Kích thước đầu leader mặc định **100 mm / 60 mm** trong Model, chỉnh được trên UI.
@@ -150,7 +155,7 @@ Ghi chú thép dọc và thép chấm của cùng vùng/lớp được đặt c�
 | `Z23`, `Z24` | Yes/No: thanh chiếu nghỉ trên/dưới |
 | `Z25`, `Z26` | Yes/No: chấm thép cấu tạo chiếu nghỉ trên/dưới |
 
-Chấm hiển thị có đường kính 1,5 × BJ36, còn tim chấm vẫn cách biên `BJ28 + d cấu tạo/2`, bước đo dọc bản xiên hoặc ngang chiếu nghỉ. Với BJ28=25/d12: tim dọc cách biên 25, tim chấm 31 mm. Các nét vẫn dùng `18-GB-Reinf`; leader/ghi chú dùng `20-GB-GC`; block `CSA_Sohieu-KCthep` giữ scale 1.0.
+Chấm hiển thị có đường kính 1,5 × BJ36; tim chấm cách biên `BJ28 + 1,5 × d cấu tạo/2`. Bước đo dọc bản xiên hoặc ngang chiếu nghỉ. Với BJ28=25/d12: tim dọc cách biên 25, tim chấm 34 mm. Các nét vẫn dùng `18-GB-Reinf`; leader/ghi chú dùng `20-GB-GC`; block `CSA_Sohieu-KCthep` giữ scale 1.0.
 
 ### Các bản sửa trước được giữ
 
@@ -161,11 +166,11 @@ Chấm hiển thị có đường kính 1,5 × BJ36, còn tim chấm vẫn cách
 
 ### Kiểm tra trong AutoCAD
 
-1. APPLOAD, xác nhận **v5.1**, rồi Load / Reload Excel.
+1. APPLOAD, xác nhận **v5.2**, rồi Load / Reload Excel.
 2. Chọn Rebar symbol, bật Rebar draft và Preview tại vùng trống.
-3. Zoom cả hai nút: các thanh phải tách riêng, đan sang lớp đối diện; đo đoạn neo **200 mm** và móc **2d**. Góc nhọn móc với thân là 30° theo cách thể hiện ở trên.
-4. Đo từ điểm chỉ thanh dọc tới đường ngang đầu được 200 mm, giữa hai đường ngang 200 mm, giữa hai nhánh đứng 50 mm. Chọn lại `T`/`%%C`, Preview lần nữa để kiểm tra nội dung và font Arial của DK-KC.
-5. Kiểm tra tim dọc/chấm, các lựa chọn Yes/No, lớp thép và số hiệu từ Excel; d10 phải hiển thị chấm 15 mm nhưng ghi chú vẫn d10. Chân dim bê tông vẫn 150 mm.
+3. Kiểm tra dòng Beam supports sau Reload. Tại đầu có dầm, cả hai thanh lớp dưới phải bẻ xuống dầm 200 mm và có móc 2d/30°. Đo khoảng cách vuông góc từ neo lớp trên tới tim thép lớp dưới được 10 mm.
+4. Cụm ký hiệu lớp dưới FLIGHT phải ở bên phải nhánh đứng, vòng SH ngoài cùng bên phải, chữ không ngược. Kiểm tra các khoảng cách leader vẫn là 200–200–50 mm và lựa chọn T/%%C.
+5. D10 phải hiển thị chấm 15 mm và tâm cách đường thép dọc 7,5 mm, ghi chú vẫn d10. Kiểm tra các lựa chọn Yes/No, lớp thép, số hiệu; chân dim bê tông vẫn 150 mm.
 6. Draw Section tại điểm mới khi đã kiểm tra. Môi trường Linux chưa chạy AutoCAD; kiểm tra offline không xác nhận hiển thị COM/DCL thực tế.
 
 ## Kiểm tra mã nguồn
@@ -174,4 +179,4 @@ Chấm hiển thị có đường kính 1,5 × BJ36, còn tim chấm vẫn cách
 
 Nguồn UI ở `../ui/CSA_StairDrawing.core.lsp`, planner dimension ở `../ui/CSA_StairConcreteDetails.lsp`, tim thép ở `../ui/CSA_StairRebar.lsp`; bản một file được tạo bằng `python3 stair-tool/tools/build_stair_bundle.py`. Không sửa trực tiếp file gộp. Chạy `python3 -m unittest discover -s stair-tool/tests -v` để kiểm tra.
 
-Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v5.1**.
+Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v5.2**.
