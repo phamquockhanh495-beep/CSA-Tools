@@ -127,6 +127,36 @@ class RebarTests(unittest.TestCase):
             expected = 'Lower + Upper' if lower and upper else 'Lower only' if lower else 'Upper only' if upper else 'None'
             self.assertTrue(text.endswith(expected))
 
+    def test_free_outer_ends_return_top_and_set_back_bottom_twenty_mm(self):
+        for inner in (False, True):
+            for lower_free, upper_free in ((True, False), (False, True), (True, True)):
+                raw = self.support_case(inner, inner)
+                concrete = self.concrete.copy()
+                if lower_free:
+                    for i in (21, 22, 23): raw[i][1] = raw[20][1]
+                    concrete[4] = 0
+                if upper_free:
+                    for i in (6, 7): raw[i][1] = raw[8][1]
+                    concrete[6] = 0
+                for cover in (15, 25):
+                    data = self.data.copy()
+                    data[0] = cover
+                    self.assertIsNone(self.pure.call('csar:error', raw, concrete, data, self.options))
+                    for side, free in ((None, lower_free), (True, upper_free)):
+                        self.assertEqual(bool(self.pure.call('csar:outer-support', raw, side)), not free)
+                        lower = self.pure.call('csar:landingpath', raw, cover, 12, 200, side, None)
+                        upper = self.pure.call('csar:landingpath', raw, cover, 12, 200, side, True)
+                        face = raw[5][0] if side else raw[0][0]
+                        self.assertAlmostEqual(abs(lower[0][0]-face), cover + (20 if free else 0))
+                        if free:
+                            self.assertEqual(upper[0][0], upper[1][0])
+                            self.assertAlmostEqual(abs(upper[0][0]-face), cover)
+                            self.assertAlmostEqual(upper[0][1], lower[0][1])
+                            self.assertGreater(upper[1][1], upper[0][1])
+                        for path in (lower, upper):
+                            polygon = self.pure.call('csad:cleanpoints', raw)
+                            self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon), cover-.01)
+
     def test_top_tails_keep_ten_mm_normal_gap_from_lower_body_axes(self):
         for raw in (self.raw, self.zero_neck(), self.support_case(False,False)):
             for cover in (15,25):

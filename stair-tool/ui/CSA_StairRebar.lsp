@@ -66,6 +66,27 @@
   (if (and (> (- right left) 0.5) (> (- slab bottom) 0.5))
     (list left right bottom slab)))
 
+(defun csar:outer-support (raw upper / width depth)
+  ;; End away from the inclined flight. An inner support is independent.
+  (if upper
+    (setq width (- (car (nth 6 raw)) (car (nth 7 raw)))
+          depth (- (cadr (nth 8 raw)) (cadr (nth 7 raw))))
+    (setq width (- (car (nth 21 raw)) (car (nth 22 raw)))
+          depth (- (cadr (nth 20 raw)) (cadr (nth 21 raw)))))
+  (and (> width 0.5) (> depth 0.5)))
+
+(defun csar:landing-end (raw cover diameter upper top / body edge bottom)
+  ;; From outside toward the junction: top return ends on the lower axis.
+  ;; A free lower end is cover + 20 mm from the concrete face.
+  (setq body (csar:landingline raw cover diameter upper top)
+        edge (if upper (cadr body) (car body)))
+  (if (csar:outer-support raw upper) (list edge)
+    (if top
+      (progn
+        (setq bottom (csar:landingline raw cover diameter upper nil))
+        (list (list (car edge) (cadar bottom)) edge))
+      (list (list (+ (car edge) (if upper -20.0 20.0)) (cadr edge))))))
+
 (defun csar:support-label (raw / lower upper)
   (if (/= (length raw) 24) "Beam supports: requires 24-row section data"
     (progn
@@ -123,22 +144,22 @@
     (csar:main-end raw cover diameter anchor-length nil top)
     (reverse (csar:main-end raw cover diameter anchor-length T top)))))
 
-(defun csar:landingpath (raw cover diameter anchor-length upper top / axis joint edge knee tip polygon beam bend)
-  (setq edge (csar:landingline raw cover diameter upper top)
-        edge (if upper (cadr edge) (car edge)) polygon (csad:cleanpoints raw))
+(defun csar:landingpath (raw cover diameter anchor-length upper top / axis joint edge knee tip polygon beam bend ending)
+  (setq ending (csar:landing-end raw cover diameter upper top)
+        edge (car (reverse ending)) polygon (csad:cleanpoints raw))
   (if (and (not top) (setq beam (csar:support-beam raw upper)))
     (progn
       ;; Separate left cover line leaves distinct landing/flight beam legs.
       (setq bend (list (+ (car beam) cover) (cadr edge))
             tip (list (car bend) (- (cadr bend) anchor-length)))
-      (csad:cleanpoints (list edge bend tip (csar:hookpoint bend tip diameter polygon))))
+      (csad:cleanpoints (append ending (list bend tip (csar:hookpoint bend tip diameter polygon)))))
     (progn
       ;; Top landing tails follow a line 10 mm normal inside the lower flight axis.
       (setq axis (csar:flight-axis raw (+ cover (if top 10.0 0.0)) (not top))
             joint (csar:joint-turn-at raw cover upper (not top) axis (cadr edge))
             knee (cadr joint)
             tip (csar:advance knee (csad:mid (car axis) (cadr axis)) anchor-length))
-      (csad:cleanpoints (list edge (car joint) knee tip (csar:hookpoint knee tip diameter polygon))))))
+      (csad:cleanpoints (append ending (list (car joint) knee tip (csar:hookpoint knee tip diameter polygon)))))))
 
 (defun csar:flag (value / s)
   (cond ((numberp value) (cond ((= value 1) 1) ((= value 0) 0)))

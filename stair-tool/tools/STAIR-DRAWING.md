@@ -16,6 +16,18 @@ Tải `CSA_StairDrawing.lsp` tại thư mục này. File đã gộp toàn bộ h
 
 Sau khi thay đổi Excel phải bấm **Load / Reload Excel**; không có đồng bộ nền. Nút Close chỉ đóng giao diện, không tự xóa preview để người dùng kiểm tra ngoài viewport. Khi đổi DWG, dữ liệu Excel đã nạp vẫn có thể dùng, nhưng tài nguyên và đơn vị của DWG đích được kiểm tra lại trước mỗi lần vẽ.
 
+## Bản trung gian v5.2.1 — đầu ngoài không có dầm
+
+Tại đầu ngoài chiếu nghỉ/chiếu tới, công cụ kiểm tra riêng bề rộng và phần nhô xuống của dầm trong đường bao Excel. Nếu không có dầm:
+
+- Thanh lớp trên tới đường cách mép bê tông một khoảng BTBV, sau đó bẻ đứng xuống cao độ tim thanh lớp dưới.
+- Thanh lớp dưới kết thúc cách mép bê tông **BTBV + 20 mm**.
+- Nhận diện độc lập từng đầu, kể cả khi vẫn có dầm ở nút nối bản xiên. Các bản vẽ cũ không tự cập nhật; tạo Preview mới để kiểm tra.
+
+Đây mới là phần đầu bản tự do của yêu cầu mới. Chi tiết neo vào dầm hướng lên, thay neo nút bản bằng BJ38 × d và đai bo góc/4 thép dọc cổ thang còn chờ thông số. Các nút nối khác trong bản trung gian vẫn dùng quy tắc v5.2 (200 mm, móc 30°/2d, khoảng tim 10 mm). Chưa có binary `.dvb`; cần AutoCAD VBA Windows để đóng gói và kiểm tra.
+
+Kiểm tra offline: 45 bài đạt, bao gồm đầu tự do bên dưới/bên trên/cả hai, kết hợp có/không có dầm nút nối và BTBV 15/25 mm. Chưa kiểm tra native AutoCAD.
+
 ## Scale đã chốt từ hình người dùng
 
 | Block | Scale X/Y/Z |
