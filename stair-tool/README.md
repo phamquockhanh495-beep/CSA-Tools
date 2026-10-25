@@ -6,13 +6,13 @@ This directory contains the first isolated implementation for the stair tool. It
 
 APPLOAD the single file [`tools/CSA_StairDrawing.lsp`](tools/CSA_StairDrawing.lsp) and run **`CSA_STAIR_DRAWING`**. Read [the workflow and acceptance instructions](tools/STAIR-DRAWING.md). It provides a native DCL dialog, file selection for a workbook already open in Excel, section preview and export to existing CSA layers. No VBA import is required for this milestone.
 
-The v5.2.1 update adds free outer landing ends independently of the inner beam detection: top bars turn down at the cover line to the lower-bar axis, and lower bars terminate cover + 20 mm from the outer concrete face. This is only the free-end portion of the next detailing revision. Updated BJ38 joint anchors, upward beam anchorage, and neck stirrups/corner bars await the user's detailing inputs; the v5.2 joint rules remain active in this interim build. No binary DVB is included.
+The v5.3 update uses BJ38 times the diameter of each bar. Beam embedment is the developed length inside the beam, including the entry run and vertical leg, excluding the 2d return hook and any traversal through a neck outside the beam. Flight bars turn up at the upper beam and down at the lower beam. At unsupported plate joints, upper flight tails share the upper landing axis; lower flight tails sit 10 mm below that same axis. Unsupported necks taller than 100 mm receive a rounded d8a200 tie (centerline R4) and four d8 corner dots with native CSA notes. Free outer landing ends retain the top return and lower cover + 20 mm setback. Layout, enlarged dots, leader arrows and fixed dimension extensions remain available. No binary DVB is included.
 
-The v5.2 update puts bottom-flight callouts on the right with upright text and the mark circle at the far right. Dot axes now offset from longitudinal axes by half the displayed diameter (1.5d/2). Inner end beams are detected independently from Excel geometry: bottom flight and landing bars bend down 200 mm into present supports, retaining 30-degree/2d return hooks; unsupported ends retain the plate joint. Top tails sit 10 mm inside the lower-body axes. UI reports the detected support configuration. The prior Arial diameter fix, T/%%C choice, 200/200/50 mm note grid and batched 150 mm dimension extensions remain. Native AutoCAD acceptance is still required.
+The original workbook fixture's upper support does not fit 30d upward anchorage for d12 at cover 25. Preflight reports the end/layer and required length instead of trimming anchors. The workbook is never modified. Native AutoCAD acceptance is still required.
 
 Accepted block scales: `Cao do` **0.25**, `Daucat` **0.01**, `So hieu thep` **0.35**, and `CSA_Sohieu-KCthep` **1.0**. The first three match the user's annotated image; the note block retains its previous sample scale. These are template-specific defaults, not a general DimStyle scaling formula.
 
-This milestone uses the existing section coordinates in `Cau Thang Tools`. Plan geometry, complete reinforcement detailing and a packaged DVB UserForm remain outstanding. An optional centreline draft now uses Excel for longitudinal and landing reinforcement with 200 mm crossed joint legs and 30-degree/2d return hooks, transverse reinforcement dots, and native leaders (Architectural tick / Dot blank). Step-count labels read U28/AI23 and landing switches read Z23:Z26; see the reinforcement section in the workflow guide. AutoCAD/Excel COM and the UI require validation on Windows; offline tests do not replace that acceptance.
+This milestone uses the existing section coordinates in `Cau Thang Tools`. Plan geometry, complete reinforcement detailing and a packaged DVB UserForm remain outstanding. An optional centreline draft now uses Excel for longitudinal and landing reinforcement with Excel-driven joint anchorage and 30-degree/2d return hooks, transverse reinforcement dots, and native leaders (Architectural tick / Dot blank). Step-count labels read U28/AI23 and landing switches read Z23:Z26; see the reinforcement section in the workflow guide. AutoCAD/Excel COM and the UI require validation on Windows; offline tests do not replace that acceptance.
 
 The MVP targets a two-flight U-shaped stair and uses AutoCAD layer `CSA-PREVIEW` for disposable geometry. The same coordinate builder is used for preview and final drawing so the preview is a faithful check of the geometry that will be committed.
 
@@ -38,7 +38,7 @@ For the workbook currently in the repository, run `CSA_PreviewCurrentWorkbook`. 
 - named Excel inputs with safe defaults;
 - adapter for the current `3-SIDES` -> `Cau Thang Tools` workbook output (`BY/BZ/CA`);
 - explicit cleanup before each preview and before final drawing;
-- no reinforcement design decisions are made by the code. Reinforcement is a separate input contract to be added after the geometry is accepted by the engineer.
+- reinforcement follows the confirmed Excel/drafting rules; the tool does not calculate reinforcement design or a fabrication schedule.
 
 The modules are source artifacts. Building a binary `.dvb` with a UserForm still requires AutoCAD VBA on Windows.
 

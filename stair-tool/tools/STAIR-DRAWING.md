@@ -16,17 +16,13 @@ Tải `CSA_StairDrawing.lsp` tại thư mục này. File đã gộp toàn bộ h
 
 Sau khi thay đổi Excel phải bấm **Load / Reload Excel**; không có đồng bộ nền. Nút Close chỉ đóng giao diện, không tự xóa preview để người dùng kiểm tra ngoài viewport. Khi đổi DWG, dữ liệu Excel đã nạp vẫn có thể dùng, nhưng tài nguyên và đơn vị của DWG đích được kiểm tra lại trước mỗi lần vẽ.
 
-## Bản trung gian v5.2.1 — đầu ngoài không có dầm
+## Bản v5.3 — neo Excel và cổ thang
 
-Tại đầu ngoài chiếu nghỉ/chiếu tới, công cụ kiểm tra riêng bề rộng và phần nhô xuống của dầm trong đường bao Excel. Nếu không có dầm:
+Neo dùng **BJ38 × đường kính từng thanh**, thay quy tắc 200 mm. Neo trong dầm đo dọc tim thanh **từ mặt dầm tới đầu neo**, gồm đoạn đi vào và đoạn đứng; không tính móc 2d hay phần đi qua cổ ngoài dầm. Xem quy tắc chi tiết và cách kiểm tra bên dưới.
 
-- Thanh lớp trên tới đường cách mép bê tông một khoảng BTBV, sau đó bẻ đứng xuống cao độ tim thanh lớp dưới.
-- Thanh lớp dưới kết thúc cách mép bê tông **BTBV + 20 mm**.
-- Nhận diện độc lập từng đầu, kể cả khi vẫn có dầm ở nút nối bản xiên. Các bản vẽ cũ không tự cập nhật; tạo Preview mới để kiểm tra.
+Đầu ngoài chiếu nghỉ/chiếu tới không có dầm: thanh trên tới đường cách mép bê tông BTBV rồi bẻ xuống tim thanh dưới; thanh dưới dừng cách mép bê tông **BTBV + 20 mm**. Mỗi đầu được nhận diện riêng, độc lập với dầm tại nút nối bản xiên.
 
-Đây mới là phần đầu bản tự do của yêu cầu mới. Chi tiết neo vào dầm hướng lên, thay neo nút bản bằng BJ38 × d và đai bo góc/4 thép dọc cổ thang còn chờ thông số. Các nút nối khác trong bản trung gian vẫn dùng quy tắc v5.2 (200 mm, móc 30°/2d, khoảng tim 10 mm). Chưa có binary `.dvb`; cần AutoCAD VBA Windows để đóng gói và kiểm tra.
-
-Kiểm tra offline: 45 bài đạt, bao gồm đầu tự do bên dưới/bên trên/cả hai, kết hợp có/không có dầm nút nối và BTBV 15/25 mm. Chưa kiểm tra native AutoCAD.
+Đây là bản Lisp chạy được để thử chi tiết. Chưa có binary `.dvb`; việc đóng gói và kiểm tra VBA cần AutoCAD VBA Windows.
 
 ## Scale đã chốt từ hình người dùng
 
@@ -112,32 +108,37 @@ Gửi ảnh gồm giao diện sau Load Excel và mặt cắt sau Preview/Draw Se
 
 Nút **Plan (next phase)** được vô hiệu hóa: bảng tọa độ đang có là đường bao mặt cắt, chưa chứa dữ liệu mặt bằng 2 vế/3 vế. Đã có tùy chọn tim thép dọc và thép chiếu nghỉ ở giai đoạn kiểm tra, chưa có thống kê hoặc móc/uốn hoàn chỉnh. Không lấy các thanh mẫu ở tiện ích kiểm tra để thay cho thiết kế. Bản này chưa triển khai toàn bộ cầu thang 2/3 vế.
 
-## Bản v5.2: nút đan chéo, móc 30°/2d, leader vuông góc
+## Cấu tạo thép v5.3
 
-Sau APPLOAD, command line phải báo **rebar-detail v5.2**. Load / Reload Excel, bật Rebar draft, chọn **Rebar symbol = %%C (Diameter) hoặc T**, rồi Preview ở vùng trống.
+Sau APPLOAD, command line phải báo **rebar-detail v5.3**. Load / Reload Excel, bật Rebar draft, chọn **Rebar symbol = %%C (Diameter) hoặc T**, rồi Preview tại vùng trống.
 
-### Bốn chỉnh sửa từ hình phản hồi v5.2
+### Neo nối bản và neo vào dầm
 
-1. **Ký hiệu lớp dưới vế xiên đặt sang phải.** Cả ghi chú thanh dọc và ghi chú chấm của lớp dưới FLIGHT chuyển sang phía phải các nhánh đứng. Vòng SH ở ngoài cùng bên phải, text DK-KC nằm bên trái vòng, đúng hình 2. Chỉ di chuyển attribute DK-KC trong block tham chiếu mới, không Mirror chữ/block hoặc đổi MIRRTEXT. Ghi chú các vùng khác giữ cách bố trí bên trái.
-2. **Tâm chấm cách đường thép dọc bằng bán kính hiển thị.** Đường kính chấm vẫn phóng 1,5 lần, nên khoảng cách vuông góc mới là `1,5 × d / 2`. D10: chấm 15 mm, tâm cách đường dọc 7,5 mm; d12: chấm 18 mm, cách 9 mm. Mép chấm tiếp tuyến với đường thép dọc. Tên đường kính và bước thép vẫn dùng số thật BJ36.
-3. **Đầu có dầm: neo lớp dưới vào dầm.** Tự nhận từng dầm đầu dưới/trên từ bề rộng và phần nhô xuống của đường bao Excel. Thép lớp dưới vế xiên bẻ xuống tại phía phải dầm (cách biên cover), thép lớp dưới bản ngang bẻ xuống tại phía trái dầm (cách biên cover). Đoạn đứng **200 mm từ góc bẻ**, kết thúc bằng móc quay ngược **30° dài 2d**. Nếu chỉ một đầu có dầm thì chỉ đầu đó đổi cấu tạo; đầu không dầm giữ neo nối bản. UI báo **Beam supports (Excel): Lower only / Upper only / Lower + Upper / None** sau Reload Excel.
-4. **Đoạn neo lớp trên cách tim lớp dưới 10 mm**, theo xác nhận của người dùng. Đoạn ngang vào chiếu nghỉ nâng lên 10 mm so với tim lớp dưới; đoạn xiên vào vế thang dịch vào trong 10 mm đo vuông góc với tim lớp dưới. Thân thép trên/dưới vẫn theo cover; chỉ đoạn neo thay đổi vị trí.
+- `BJ38` là hệ số neo theo đường kính, phải là số dương. Ví dụ BJ38=30: thanh d12 neo 360 mm, d14 neo 420 mm. Chiều dài được dùng thống nhất khi kiểm tra, dựng thanh và đặt leader.
+- **Nút không có dầm:** đoạn neo ngang của thép xiên lớp trên trùng tim thép ngang lớp trên; neo ngang của thép xiên lớp dưới thấp hơn **tim thép ngang lớp trên 10 mm**. Đoạn ngang dài BJ38 × d, chưa cộng móc và đoạn chuyển tiếp qua cổ.
+- Thép bản ngang vẫn là thanh riêng: lớp trên kéo vào vùng lớp dưới vế xiên, cách tim lớp dưới 10 mm theo phương vuông góc; lớp dưới nối sang vùng lớp trên vế xiên. Các đoạn xiên cũng dài BJ38 × d. Quy tắc này giữ từ bản đã chốt; xác nhận mới thay vị trí **neo ngang của thép vế xiên**.
+- **Dầm trên:** cả hai lớp thép vế xiên tiến tới đường cách mép dầm BTBV rồi bẻ lên. **Dầm dưới:** bẻ xuống. Tổng chiều dài nằm trong dầm bằng BJ38 × d; chiều dài đoạn đứng là phần còn lại sau đoạn đi vào dầm.
+- Nếu cổ cao làm đường kéo tới phía xa đi ra ngoài bê tông, đoạn đứng ở dầm dưới đi theo đường BTBV phía gần vế xiên. Chiều dài xuyên cổ **ngoài dầm** không được tính vào neo: bắt đầu đếm ở mặt trên dầm. Dầm được giới hạn bởi bề rộng thực tế, đáy dầm và mặt trên bản ngang trong hợp đồng tọa độ hiện tại.
+- Thép lớp dưới bản ngang tại đầu có dầm đi vào tới đường BTBV phía đối diện rồi bẻ xuống. Phần ngang trong dầm cộng phần đứng bằng BJ38 × d.
+- Móc cuối vẫn quay ngược **30°**, dài **2d**, không cộng vào chiều dài neo. Móc hướng vào bê tông; không tự rút ngắn khi thiếu chỗ.
+- Tự nhận dầm ở từng nút theo bề rộng và phần nhô xuống >0,5 mm. Dầm dưới dùng STT 18/19/20; dầm trên dùng STT 11/12/10. Dầm mép ngoài được nhận diện riêng. Không suy ra dầm chìm không thể hiện trong đường bao.
 
-Dầm được nhận tại hai nút tiếp giáp vế xiên, không lấy các dầm ở mép ngoài xa của chiếu nghỉ làm dầm đầu vế. Với hợp đồng 24 điểm hiện có: dầm dưới dùng cặp STT 18/19 và cao độ bản STT 20; dầm trên dùng STT 11/12 và cao độ bản STT 10. Chỉ nhận khi bề rộng và độ nhô đều lớn hơn 0,5 mm. Tiện ích không thêm bê tông dầm; dùng đúng đường bao đã đọc. Kiểm tra toàn bộ đường thanh/móc với bê tông và cover; nếu đoạn đứng 200 mm hoặc móc không đủ chỗ, báo lỗi và giữ preview trước, không tự rút ngắn.
+Nếu chiều dài/móc không đặt vừa, chương trình báo đầu trên/dưới, lớp thanh và chiều dài yêu cầu trước khi tạo hình; giữ preview trước đó. Với **workbook mẫu nguyên trạng trong kho**, dầm trên rộng 200 mm không đủ chỗ cho neo hướng lên 30d của thanh d12 với BTBV 25 mm. Cần kiểm tra cấu tạo và dữ liệu thực tế; công cụ không sửa Excel hoặc tự giảm BJ38.
 
-Các bản sửa v5.1 vẫn có: attribute DK-KC của ghi chú mới dùng Arial để hiển thị đúng `%%C`, lựa chọn T/%%C, bố trí leader 200–200–50 mm theo các đường ngang thực tế. Hướng phải/bên trái được căn theo mép text tương ứng sau khi đặt font.
+### Cổ thang và đai bo góc
 
-### Cấu tạo nút theo hình mới
+Chỉ bố trí khi **không có dầm tại nút** và chiều cao cổ **lớn hơn 100 mm** (đúng 100 mm không bố trí). Chiều cao cổ dưới lấy STT 3−2 theo Y; cổ trên lấy STT 5−4 theo Y. Nút không đạt điều kiện vẫn có neo thép dọc theo hình học bản/dầm hiện có.
 
-- Thép vế xiên và thép chiếu nghỉ/chiếu tới là **các thanh riêng**, có số hiệu riêng. Với hai lớp và cả hai chiếu nghỉ bật, có sáu tim thanh đại diện: hai vế xiên, hai chiếu nghỉ dưới và hai chiếu nghỉ trên.
-- Lớp trên neo vào vùng lớp dưới nhưng giữ khoảng cách tim 10 mm. Lớp dưới neo xuống dầm ở đầu có dầm; đầu không có dầm giữ kiểu nối sang bản bên cạnh.
-- Đoạn neo **200 mm cố định**, không nhân đường kính. Đoạn lớp dưới neo vào dầm đo theo phương đứng; các đoạn nối bản còn lại đo theo phương ngang hoặc dọc trục xiên tương ứng. Không cộng móc hoặc đoạn chuyển tiếp giật cấp vào 200 mm này.
-- Móc cuối dài **2 × đường kính thanh**, đã được người dùng xác nhận là móc **quay ngược**, tạo góc nhọn 30° với hướng ngược của đoạn neo (đổi hướng 150°). Móc quay vào phía trong bê tông. Ví dụ d12: neo 200 mm, móc 24 mm; d14: neo vẫn 200 mm, móc 28 mm.
-- Với nút nối liên tục, dùng giao điểm thật của tim xiên và tim ngang để tạo nút đan. Nếu kéo dài tim xiên như vậy sẽ ra ngoài bê tông do đoạn giật cấp, đường thanh giữ đoạn chuyển tiếp trong phần bê tông hiện có. Không thay đổi đường bao bê tông để ép thanh vào hình tham khảo.
+- Một đai chữ nhật bo góc đại diện trong mặt cắt, ghi **Ø8a200**. Tim đai cách biên BTBV + 4 mm, bo theo tim **R4 mm** như bán kính thanh góc Ø8 được chốt. Polyline kín dùng bốn cung tròn 90°, không dùng spline.
+- **4 thanh góc Ø8**, biểu diễn bằng bốn chấm, ghi **4Ø8** (hoặc 4T8). Chấm vẫn phóng 1,5 lần để đọc rõ, tâm được đặt để chấm nằm trong đai; đường kính ghi chú vẫn Ø8.
+- Số hiệu tiếp nối các nhóm thép đã vẽ. Đai dùng leader Architectural tick, thanh góc dùng Dot blank, block/tag/font như các ghi chú thép khác.
+- Kiểm tra kích thước cổ, lớp bảo vệ và chỗ cho bốn chấm. Không ép đai/chấm ra ngoài bê tông để đủ số lượng. a200 là bước ghi chú theo cấu tạo đã chốt; chưa dựng mặt bằng số lượng đai hay bảng thống kê.
 
-**BJ38 đã được thay thế bởi quy tắc 200 mm này.** Ô vẫn được đọc để tương thích workbook, nhưng đổi 20/30d trong BJ38 không còn đổi chiều dài neo của v5.
+### Các thiết lập trình bày được giữ
 
-Các đường thanh có thể giao nhau trong hình chiếu tại nút nối. Kiểm tra khoảng cách lớp ở phần thân bản và từng đường thanh/móc trong bê tông; các đoạn neo lớp trên được tách khỏi tim thép dưới 10 mm theo quy tắc mới. Nếu 200 mm hoặc móc 2d không đủ chỗ, tiện ích báo lỗi và giữ preview cũ; không tự cắt ngắn. Bán kính uốn và thống kê gia công chưa được tạo.
+Ghi chú lớp dưới vế xiên đặt sang phải, vòng SH ngoài cùng bên phải và chữ đọc thuận. Tâm chấm cách tim thép dọc bằng bán kính hiển thị `1,5 × d/2`. Ví dụ d10 hiển thị đường kính 15 mm, cách tim thép dọc 7,5 mm. Ghi chú vẫn dùng đường kính/bước thật.
+
+Thép dọc đặt theo BTBV đã chốt trong hình biểu diễn tim; các đường thanh có thể giao nhau trong hình chiếu. Bán kính gia công thanh dọc và thống kê cắt/uốn chưa được tạo; R4 ở trên chỉ áp dụng đai cổ thang.
 
 ### Leader và ký hiệu thép
 
@@ -160,7 +161,7 @@ Ghi chú thép dọc và thép chấm của cùng vùng/lớp được đặt c�
 | `BJ34`, `BJ35` | Đường kính/bước thép dọc dưới/trên của vế xiên |
 | `BJ36` | Đường kính/bước thép cấu tạo vuông góc mặt cắt |
 | `BJ37` | 1 hoặc 2 lớp; 1 lớp dựng một thanh thân dưới mỗi vùng, đầu neo vẫn theo cấu tạo nút |
-| `BJ38` | Đọc để tương thích; **không điều khiển neo 200 mm trong v5** |
+| `BJ38` | Hệ số neo: chiều dài = BJ38 × đường kính từng thanh; chưa tính móc 2d |
 | `BJ39` | Số hiệu thanh bắt đầu; tăng liên tục cho các nhóm được vẽ |
 | `BJ40`, `BJ41` | Đọc để mở rộng; chưa lập thống kê |
 | `U28`, `AI23`, `AV21` | Nhãn số bậc đầu, số bậc vế xiên, chiều cao bậc đầu vào |
@@ -178,12 +179,13 @@ Chấm hiển thị có đường kính 1,5 × BJ36; tim chấm cách biên `BJ2
 
 ### Kiểm tra trong AutoCAD
 
-1. APPLOAD, xác nhận **v5.2**, rồi Load / Reload Excel.
+1. APPLOAD, xác nhận **v5.3**, rồi Load / Reload Excel.
 2. Chọn Rebar symbol, bật Rebar draft và Preview tại vùng trống.
-3. Kiểm tra dòng Beam supports sau Reload. Tại đầu có dầm, cả hai thanh lớp dưới phải bẻ xuống dầm 200 mm và có móc 2d/30°. Đo khoảng cách vuông góc từ neo lớp trên tới tim thép lớp dưới được 10 mm.
-4. Cụm ký hiệu lớp dưới FLIGHT phải ở bên phải nhánh đứng, vòng SH ngoài cùng bên phải, chữ không ngược. Kiểm tra các khoảng cách leader vẫn là 200–200–50 mm và lựa chọn T/%%C.
-5. D10 phải hiển thị chấm 15 mm và tâm cách đường thép dọc 7,5 mm, ghi chú vẫn d10. Kiểm tra các lựa chọn Yes/No, lớp thép, số hiệu; chân dim bê tông vẫn 150 mm.
-6. Draw Section tại điểm mới khi đã kiểm tra. Môi trường Linux chưa chạy AutoCAD; kiểm tra offline không xác nhận hiển thị COM/DCL thực tế.
+3. Kiểm tra Beam supports. Đo tổng tim thanh trong dầm tới đầu neo bằng BJ38 × d, bỏ phần xuyên cổ ngoài dầm và móc 2d. Dầm trên: thép vế xiên bẻ lên; dầm dưới: bẻ xuống. Kiểm tra từng đầu có/không dầm.
+4. Tại nút nối bản không dầm, neo ngang lớp trên trùng tim thép ngang lớp trên; neo ngang lớp dưới thấp hơn tim đó 10 mm. Kiểm tra cổ >100 mm có đai R4, ghi Ø8a200 và 4Ø8; cổ ≤100 mm hoặc có dầm không có bộ thép này.
+5. Cụm ký hiệu lớp dưới FLIGHT phải ở bên phải nhánh đứng, vòng SH ngoài cùng bên phải, chữ không ngược. Kiểm tra các khoảng cách leader vẫn là 200–200–50 mm và lựa chọn T/%%C.
+6. D10 phải hiển thị chấm 15 mm và tâm cách đường thép dọc 7,5 mm, ghi chú vẫn d10. Kiểm tra các lựa chọn Yes/No, lớp thép, số hiệu; chân dim bê tông vẫn 150 mm.
+7. Draw Section tại điểm mới khi đã kiểm tra. Môi trường Linux chưa chạy AutoCAD; kiểm tra offline không xác nhận hiển thị COM/DCL thực tế.
 
 ## Kiểm tra mã nguồn
 
@@ -191,4 +193,4 @@ Chấm hiển thị có đường kính 1,5 × BJ36; tim chấm cách biên `BJ2
 
 Nguồn UI ở `../ui/CSA_StairDrawing.core.lsp`, planner dimension ở `../ui/CSA_StairConcreteDetails.lsp`, tim thép ở `../ui/CSA_StairRebar.lsp`; bản một file được tạo bằng `python3 stair-tool/tools/build_stair_bundle.py`. Không sửa trực tiếp file gộp. Chạy `python3 -m unittest discover -s stair-tool/tests -v` để kiểm tra.
 
-Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v5.2**.
+Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v5.3**.

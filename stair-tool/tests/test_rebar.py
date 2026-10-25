@@ -64,29 +64,42 @@ class RebarTests(unittest.TestCase):
         for i in (13,14): raw[i][1] = slope*raw[i][0]+intercept
         return raw
 
-    def test_excel_rebar_defaults_fit_and_cover_is_respected(self):
+    def test_excel_anchor_lengths_and_cover_on_fitting_supports(self):
         for raw in (self.raw, self.zero_neck()):
             polygon = self.pure.call('csad:cleanpoints', raw)
             for cover in (15, 20, 25):
                 data = self.data.copy()
-                data[0] = cover
+                data[0], data[10] = cover, 20
                 self.assertIsNone(self.pure.call('csar:error', raw, self.concrete, data, self.options))
                 for top in (None, True):
-                    path = self.pure.call('csar:mainpath', raw, cover, 12, 200, top)
-                    self.assertAlmostEqual(math.dist(path[1], path[2]), 200)
-                    self.assertAlmostEqual(math.dist(path[-3], path[-2]), 200)
+                    path = self.pure.call('csar:mainpath', raw, cover, 12, 240, top)
                     self.assert_return_hook(path[2], path[1], path[0], 12)
                     self.assert_return_hook(path[-3], path[-2], path[-1], 12)
                     self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon), cover-0.01)
 
-    def test_bj38_is_superseded_and_excessive_cover_is_rejected(self):
-        for legacy_anchor in (0, 20, 30, 1000):
+    def test_bj38_is_used_per_diameter_and_invalid_values_are_rejected(self):
+        raw = self.support_case(False, False)
+        for multiplier in (20, 30):
             data = self.data.copy()
-            data[10] = legacy_anchor
-            self.assertIsNone(self.pure.call('csar:error', self.raw, self.concrete, data, self.options))
+            data[10] = multiplier
+            for diameter in (8, 12, 16):
+                self.assertEqual(self.pure.call('csar:anchor-length', data, diameter), multiplier*diameter)
+                path = self.pure.call('csar:mainpath', raw, 25, diameter, multiplier*diameter, True)
+                self.assertAlmostEqual(math.dist(path[1],path[2]), multiplier*diameter)
+                self.assertAlmostEqual(math.dist(path[-3],path[-2]), multiplier*diameter)
+        for value in (None, '', 0, -1):
+            data = self.data.copy()
+            data[10] = value
+            self.assertIn('BJ38', self.pure.call('csar:error', raw, self.concrete, data, self.options))
         data = self.data.copy()
         data[0] = 80
-        self.assertIsNotNone(self.pure.call('csar:error', self.raw, self.concrete, data, self.options))
+        self.assertIsNotNone(self.pure.call('csar:error', raw, self.concrete, data, self.options))
+        # The unchanged workbook's 200-wide upper beam cannot contain upward
+        # 30d anchorage for d12 at this cover. Reject instead of trimming it.
+        issue = self.pure.call('csar:error',self.raw,self.concrete,self.data,self.options)
+        self.assertIn('Upper beam',issue)
+        self.assertIn('360.0 mm',issue)
+        self.assertIn('not shortened',issue)
 
     def support_case(self, lower, upper):
         raw = self.zero_neck()
@@ -100,29 +113,127 @@ class RebarTests(unittest.TestCase):
             for i in (9,10,11,12,13): raw[i] = point.copy()
         return raw
 
-    def test_support_detection_and_bottom_bar_legs_for_zero_one_two_beams(self):
+    def neck_case(self):
+        raw = [p[:] for p in self.raw]
+        for i in (17,18,19): raw[i] = raw[15].copy()
+        for i in (10,11,12): raw[i] = [raw[9][0],raw[13][1]]
+        return raw
+
+    def test_neck_reinforcement_threshold_supports_radius_and_four_corners(self):
+        raw = self.neck_case()
+        self.assertIsNone(self.pure.call('csar:error',raw,self.concrete,self.data,self.options))
+        for upper in (None, True):
+            self.assertTrue(self.pure.call('csar:neck-enabled',raw,upper))
+            self.assertFalse(self.pure.call('csar:neck-enabled',self.raw,upper))
+            box = self.pure.call('csar:neck-box',raw,25,upper)
+            vertices = self.pure.call('csar:rounded-box',box,4)
+            dots = self.pure.call('csar:neck-dots',box)
+            self.assertEqual(len(vertices),8)
+            self.assertEqual(len(dots),4)
+            self.assertAlmostEqual(vertices[0][0]-box[0],4)
+            self.assertAlmostEqual(vertices[2][1]-box[1],4)
+            polygon = self.pure.call('csad:cleanpoints',raw)
+            for point in dots:
+                self.assertGreaterEqual(self.pure.call('csar:point-clearance',point,polygon),25+6)
+            altered = [p[:] for p in raw]
+            for height, expected in ((0,False),(100,False),(100.1,True)):
+                if upper: altered[3][1] = altered[4][1]-height
+                else: altered[2][1] = altered[1][1]+height
+                self.assertEqual(bool(self.pure.call('csar:neck-enabled',altered,upper)),expected)
+        narrow = [p[:] for p in raw]
+        narrow[14][0] = narrow[1][0]+70
+        self.assertIn('Lower neck',self.pure.call('csar:neck-error',narrow,25))
+
+    def test_neck_renderer_uses_quarter_arcs_four_dots_and_native_callouts(self):
+        pure = PureLisp(self.forms)
+        paths, dots, notes, bulges, closed = [], [], [], [], []
+        pure.host.update({
+            'csar:polyline': lambda *args: paths.append(args) or len(paths),
+            'csar:dot': lambda *args: dots.append(args),
+            'csar:note': lambda *args: notes.append(args),
+            'vla-put-Closed': lambda *args: closed.append(args),
+            'vla-SetBulge': lambda *args: bulges.append(args),
+        })
+        pure.defs['test-necks'] = ['defun','test-necks',[],['setq',':vlax-true',True],
+            ['csar:render-necks',None,['quote',[0,0,0]],['quote',self.neck_case()],25,13,True,50]]
+        self.assertEqual(pure.call('test-necks'),17)
+        self.assertEqual(len(paths),2)
+        self.assertEqual(len(dots),8)
+        self.assertTrue(all(d[3]==8 and d[4]=='CSA-PREVIEW' for d in dots))
+        self.assertTrue(all(v is True for obj,v in closed))
+        self.assertEqual([b[1] for b in bulges],[1,3,5,7]*2)
+        for obj,index,bulge in bulges:
+            self.assertAlmostEqual(bulge,math.tan(math.pi/8))
+        self.assertEqual([n[5] for n in notes],[13,14,15,16])
+        self.assertEqual([bool(n[6]) for n in notes],[False,True,False,True])
+        self.assertEqual(pure.call('csar:notation',notes[0][4],'0'),'%%C8a200')
+        self.assertEqual(pure.call('csar:notation',notes[1][4],'0'),'4%%C8')
+        self.assertEqual(pure.call('csar:notation',notes[1][4],'1'),'4T8')
+
+    @staticmethod
+    def clipped_length(path, box):
+        # Independent rectangular line clipping, excluding the return hook.
+        left,bottom,right,top = box
+        total = 0
+        for a,b in zip(path,path[1:]):
+            lo,hi = 0.0,1.0
+            for index,low,high in ((0,left,right),(1,bottom,top)):
+                delta=b[index]-a[index]
+                if abs(delta)<1e-9:
+                    if not low-1e-9<=a[index]<=high+1e-9: hi=-1
+                else:
+                    cuts=sorted(((low-a[index])/delta,(high-a[index])/delta))
+                    lo=max(lo,cuts[0]);hi=min(hi,cuts[1])
+            total+=max(0,hi-lo)*math.dist(a,b)
+        return total
+
+    def test_beam_anchor_excludes_traversal_through_tall_neck(self):
+        for raw in (self.raw,self.zero_neck()):
+            for top in (None,True):
+                end=self.pure.call('csar:main-end',raw,25,12,360,None,top)
+                axis=self.pure.call('csar:flight-axis',raw,25,top)
+                mid=self.pure.call('csad:mid',*axis)
+                beam=self.pure.call('csar:support-beam',raw,None)
+                rect=[beam[0],beam[2],beam[1],raw[0][1]]
+                self.assertAlmostEqual(self.clipped_length([mid,end[2],end[1]],rect),360)
+                if raw is self.raw:
+                    self.assertGreater(end[2][1],0)
+                    self.assertAlmostEqual(end[1][1],-360) # full embedment below top of beam
+
+    def test_support_detection_and_total_anchorage_for_zero_one_two_beams(self):
         for lower, upper in ((False,False),(True,False),(False,True),(True,True)):
             raw = self.support_case(lower, upper)
             data = self.data.copy()
-            data[0] = 20
+            data[0], data[10] = 20, 20
             self.assertIsNone(self.pure.call('csar:error', raw, self.concrete, data, self.options))
-            flight = self.pure.call('csar:mainpath', raw, 20, 12, 200, None)
+            for top in (None, True):
+                flight = self.pure.call('csar:mainpath', raw, 20, 12, 240, top)
+                axis = self.pure.call('csar:flight-axis',raw,20,top)
+                for side, enabled in ((None,lower),(True,upper)):
+                    beam = self.pure.call('csar:support-beam', raw, side)
+                    self.assertEqual(bool(beam), enabled)
+                    bend,tip,hook = (flight[-3],flight[-2],flight[-1]) if side else (flight[2],flight[1],flight[0])
+                    self.assert_return_hook(bend,tip,hook,12)
+                    if enabled:
+                        mid = self.pure.call('csad:mid',*axis)
+                        rect = [beam[0],beam[2],beam[1],raw[4 if side else 0][1]]
+                        self.assertAlmostEqual(self.clipped_length([mid,bend,tip],rect),240)
+                        self.assertEqual(bend[0],tip[0])
+                        self.assertEqual(tip[1]>bend[1],bool(side)) # upper up, lower down
+                        self.assertAlmostEqual(min(abs(bend[0]-beam[0]),abs(bend[0]-beam[1])),20)
+                    else:
+                        self.assertAlmostEqual(math.dist(bend,tip),240)
             for side, enabled in ((None,lower),(True,upper)):
-                beam = self.pure.call('csar:support-beam', raw, side)
-                self.assertEqual(bool(beam), enabled)
-                landing = self.pure.call('csar:landingpath', raw, 20, 12, 200, side, None)
-                self.assertAlmostEqual(math.dist(landing[-3],landing[-2]), 200)
-                self.assert_return_hook(landing[-3],landing[-2],landing[-1],12)
+                landing = self.pure.call('csar:landingpath',raw,20,12,240,side,None)
+                bend,tip,hook = landing[-3:]
                 if enabled:
-                    self.assertAlmostEqual(landing[-3][0], beam[0]+20)
-                    self.assertEqual(landing[-3][0], landing[-2][0])
-                    self.assertEqual(landing[-3][1]-landing[-2][1], 200)
-                    bend, tip = (flight[-3],flight[-2]) if side else (flight[2],flight[1])
-                    self.assertAlmostEqual(bend[0], beam[1]-20)
-                    self.assertEqual(bend[0], tip[0])
-                    self.assertEqual(bend[1]-tip[1], 200)
+                    beam = self.pure.call('csar:support-beam',raw,side)
+                    entry = [beam[1 if side else 0],bend[1]]
+                    self.assertAlmostEqual(math.dist(entry,bend)+math.dist(bend,tip),240)
+                    self.assertLess(tip[1],bend[1])
                 else:
-                    self.assertNotEqual(landing[-3][0], landing[-2][0])
+                    self.assertAlmostEqual(math.dist(bend,tip),240)
+                self.assert_return_hook(bend,tip,hook,12)
             text = self.pure.call('csar:support-label', raw)
             expected = 'Lower + Upper' if lower and upper else 'Lower only' if lower else 'Upper only' if upper else 'None'
             self.assertTrue(text.endswith(expected))
@@ -140,12 +251,12 @@ class RebarTests(unittest.TestCase):
                     concrete[6] = 0
                 for cover in (15, 25):
                     data = self.data.copy()
-                    data[0] = cover
+                    data[0], data[10] = cover, 20
                     self.assertIsNone(self.pure.call('csar:error', raw, concrete, data, self.options))
                     for side, free in ((None, lower_free), (True, upper_free)):
                         self.assertEqual(bool(self.pure.call('csar:outer-support', raw, side)), not free)
-                        lower = self.pure.call('csar:landingpath', raw, cover, 12, 200, side, None)
-                        upper = self.pure.call('csar:landingpath', raw, cover, 12, 200, side, True)
+                        lower = self.pure.call('csar:landingpath', raw, cover, 12, 240, side, None)
+                        upper = self.pure.call('csar:landingpath', raw, cover, 12, 240, side, True)
                         face = raw[5][0] if side else raw[0][0]
                         self.assertAlmostEqual(abs(lower[0][0]-face), cover + (20 if free else 0))
                         if free:
@@ -157,33 +268,45 @@ class RebarTests(unittest.TestCase):
                             polygon = self.pure.call('csad:cleanpoints', raw)
                             self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon), cover-.01)
 
-    def test_top_tails_keep_ten_mm_normal_gap_from_lower_body_axes(self):
-        for raw in (self.raw, self.zero_neck(), self.support_case(False,False)):
+    def test_plate_flight_tails_reference_top_landing_at_zero_and_minus_ten(self):
+        for raw in (self.support_case(False,False), self.neck_case()):
             for cover in (15,25):
-                polygon = self.pure.call('csad:cleanpoints', raw)
-                main = self.pure.call('csar:mainpath', raw, cover, 12, 200, True)
-                for side in (None, True):
-                    a,b = (main[-3],main[-2]) if side else (main[2],main[1])
-                    lower_landing = self.pure.call('csar:landingline', raw, cover, 12, side, None)
-                    self.assertAlmostEqual(a[1]-lower_landing[0][1],10)
-                    self.assertAlmostEqual(b[1]-lower_landing[0][1],10)
-                    path = self.pure.call('csar:landingpath', raw, cover, 12, 200, side, True)
-                    self.assertAlmostEqual(math.dist(path[-3],path[-2]),200)
-                    self.assert_return_hook(path[-3],path[-2],path[-1],12)
-                    lower_flight = self.pure.call('csar:flight-axis', raw, cover, None)
-                    for point in path[-3:-1]:
-                        projection = self.pure.call('csad:project', point, *lower_flight)
-                        self.assertAlmostEqual(math.dist(point,projection),10)
+                for top in (None,True):
+                    path = self.pure.call('csar:mainpath',raw,cover,12,360,top)
+                    for side in (None, True):
+                        a,b = (path[-3],path[-2]) if side else (path[2],path[1])
+                        landing_top = self.pure.call('csar:landingline', raw, cover, 12, side, True)
+                        expected_y = landing_top[0][1]-(0 if top else 10)
+                        self.assertAlmostEqual(a[1],expected_y)
+                        self.assertAlmostEqual(b[1],expected_y)
+                        self.assertAlmostEqual(math.dist(a,b),360)
+                    polygon = self.pure.call('csad:cleanpoints',raw)
                     self.assertGreaterEqual(self.pure.call('csar:path-clearance',path,polygon),cover-.01)
+                # Landing top still enters the lower flight with the previously
+                # confirmed 10 mm normal separation; this rule was not replaced.
+                for side in (None, True):
+                    landing = self.pure.call('csar:landingpath',raw,cover,12,360,side,True)
+                    axis = self.pure.call('csar:flight-axis',raw,cover,None)
+                    for point in landing[-3:-1]:
+                        projection = self.pure.call('csad:project',point,*axis)
+                        self.assertAlmostEqual(math.dist(point,projection),10)
 
-    def test_shallow_support_does_not_silently_shorten_two_hundred_mm_anchor(self):
+    def test_shallow_support_does_not_shorten_total_anchor(self):
         raw = self.support_case(True,True)
         raw[17][1] = raw[18][1] = -140
-        issue = self.pure.call('csar:error',raw,self.concrete,self.data,self.options)
+        data = self.data.copy()
+        data[10] = 20
+        issue = self.pure.call('csar:error',raw,self.concrete,data,self.options)
         self.assertIsNotNone(issue)
         self.assertIn('does not fit',issue)
-        path = self.pure.call('csar:landingpath',raw,self.data[0],12,200,None,None)
-        self.assertEqual(path[-3][1]-path[-2][1],200)
+        path = self.pure.call('csar:landingpath',raw,25,12,240,None,None)
+        beam = self.pure.call('csar:support-beam',raw,None)
+        entry = [beam[0],path[-3][1]]
+        self.assertAlmostEqual(math.dist(entry,path[-3])+math.dist(path[-3],path[-2]),240)
+        # A requested length shorter than the entry run cannot create a
+        # reversed vertical leg or accidentally omit one end of the flight.
+        self.assertIsNone(self.pure.call('csar:landingpath',raw,25,12,100,None,None))
+        self.assertIsNone(self.pure.call('csar:mainpath',raw,25,12,10,True))
 
     def test_flat_flight_is_rejected_before_joint_intersection_division(self):
         raw = [p[:] for p in self.raw]
@@ -195,7 +318,7 @@ class RebarTests(unittest.TestCase):
     def test_landing_diameters_are_validated_independently(self):
         for slot in (4, 5):
             data = self.data.copy()
-            data[slot] = '100a150'
+            data[slot], data[10] = '100a150', 20
             self.assertIn('Landing', self.pure.call('csar:error', self.raw, self.concrete, data, self.options))
 
     def test_render_plan_uses_excel_bars_layers_and_sequential_marks(self):
@@ -211,15 +334,17 @@ class RebarTests(unittest.TestCase):
                 'csast:text': lambda *args: None,
             })
             data = self.data.copy()
-            data[9], data[11] = mode, 7
-            data[4], data[5] = '10a120', '8a100'
+            data[9], data[11], data[10] = mode, 7, 20
+            data[4], data[5] = '14a120', '12a100'
+            self.assertIsNone(pure.call('csar:error',self.raw,self.concrete,data,self.options))
             pure.call('csar:render', None, [100, 200, 0], self.raw, data, self.options, None, 400, 50)
             self.assertEqual(len(paths), count)
+            self.assertTrue(all(path and len(path)>3 for path,layer in paths))
             self.assertTrue(all(layer == '18-GB-Reinf' for _, layer in paths))
             self.assertEqual([note[5] for note in notes], list(range(7, 7+2*count)))
             repeat = 1 if count == 3 else 2
             self.assertEqual([note[4][2] for note in notes[:count]],
-                             ['12a150']*repeat + ['10a120']*repeat + ['8a100']*repeat)
+                             ['12a150']*repeat + ['14a120']*repeat + ['12a100']*repeat)
             self.assertTrue(all(note[6] is None for note in notes[:count])) # ticks
             self.assertTrue(all(note[6] is True for note in notes[count:])) # dot blank
             self.assertTrue(dots)
@@ -265,9 +390,10 @@ class RebarTests(unittest.TestCase):
         options[3:] = ['No']*4
         bad_landing = self.data.copy()
         bad_landing[4:6] = ['100a150', '100a150']
+        bad_landing[10] = 20
         self.assertIsNone(self.pure.call('csar:error', self.raw, self.concrete, bad_landing, options))
         bad = self.data.copy()
-        bad[8] = '12a0.001'
+        bad[8], bad[10] = '12a0.001', 20
         self.assertIn('2000', self.pure.call('csar:error', self.raw, self.concrete, bad, self.options))
 
     def test_native_leader_arrow_types_are_per_entity(self):
@@ -357,9 +483,9 @@ class RebarTests(unittest.TestCase):
                     line = next(v[2] for v in specs if v[:2] == [region, top])
                     self.assertIn(pair[1], self.pure.call('csar:stations', *line, 100))
                     if region == 'FLIGHT':
-                        path = self.pure.call('csar:mainpath', raw, self.data[0], 12, 200, top)
+                        path = self.pure.call('csar:mainpath', raw, self.data[0], 12, 360, top)
                     else:
-                        path = self.pure.call('csar:landingpath', raw, self.data[0], 12, 200, region=='UPPER', top)
+                        path = self.pure.call('csar:landingpath', raw, self.data[0], 12, 360, region=='UPPER', top)
                     self.assertLess(self.pure.call('csar:point-path-distance', pair[0], path), .01)
 
     def test_font_override_applies_only_to_new_diameter_attribute(self):

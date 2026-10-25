@@ -138,7 +138,7 @@
           ": row { : edit_box { key = \"dotsize\"; label = \"Dot blank size (mm)\"; edit_width = 12; }"
           ": edit_box { key = \"ticksize\"; label = \"Tick size (mm)\"; edit_width = 12; } }"
           ": row { : popup_list { key = \"barprefix\"; label = \"Rebar symbol\"; width = 25; }"
-          ": text { label = \"Joint: 200 mm / 30 deg / 2d hook\"; } }"
+          ": text { label = \"Joint: BJ38 x d / 30 deg / 2d hook\"; } }"
           ": boxed_row { label = \"Section options\";"
           ": toggle { key = \"dims\"; label = \"Overall width\"; }"
           ": toggle { key = \"details\"; label = \"Concrete details\"; }"
@@ -146,7 +146,7 @@
           ": toggle { key = \"symbol\"; label = \"Section symbol\"; } }"
           ": toggle { key = \"steps\"; label = \"Step counts from Excel (U28 / AI23)\"; }"
           ": toggle { key = \"rebar\"; label = \"Rebar draft - bent landing anchors and transverse dots\"; }"
-          ": text { label = \"Notes: 200 / 200 / 50 mm | Dot display: x1.5\"; }"
+          ": text { label = \"Neck >100, no beam: d8a200 + 4d8 / R4 | Dots x1.5\"; }"
           ": text { key = \"supportinfo\"; width = 80; }"
           ": text { key = \"status\"; width = 80; }"
           ": row { : button { key = \"preview\"; label = \"Preview\"; }"
@@ -364,5 +364,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.2.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.3 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)
