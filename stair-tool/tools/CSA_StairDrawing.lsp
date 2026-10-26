@@ -372,7 +372,22 @@
     (csad:dimoverride selection (/ model-length (car group))))
   T)
 
-(defun csad:draw-spec (space base spec layer style / a b location kind obj)
+(defun csad:short-feet (spec limit / a b location axis span normal point foot amount result)
+  (setq a (nth 2 spec) b (nth 3 spec) location (nth 4 spec)
+        axis (cond ((= (nth 1 spec) "H") '(1.0 0.0))
+                   ((= (nth 1 spec) "V") '(0.0 1.0))
+                   (T (setq span (distance a b))
+                      (list (/ (- (car b) (car a)) span) (/ (- (cadr b) (cadr a)) span))))
+        normal (list (- 0.0 (cadr axis)) (car axis)))
+  (foreach point (list a b)
+    (setq amount (+ (* (- (car location) (car point)) (car normal))
+                    (* (- (cadr location) (cadr point)) (cadr normal)))
+          foot (list (+ (car point) (* amount (car normal))) (+ (cadr point) (* amount (cadr normal)))))
+    (if (> (abs amount) 0.001)
+      (setq result (cons (list foot (csar:advance foot point (min limit (abs amount)))) result))))
+  (reverse result))
+
+(defun csad:draw-spec (space base spec layer style / a b location kind obj segment)
   (setq a (nth 2 spec) b (nth 3 spec) location (nth 4 spec) kind (nth 1 spec)
         a (csast:p base (car a) (cadr a)) b (csast:p base (car b) (cadr b))
         location (csast:p base (car location) (cadr location)))
@@ -383,6 +398,12 @@
       (vlax-3d-point b) (vlax-3d-point location) (if (= kind "H") 0.0 (/ pi 2.0))))))
   (vla-put-Layer obj layer) (vla-put-StyleName obj style)
   (if (nth 5 spec) (vla-put-TextOverride obj (nth 5 spec)))
+  ;; Native measurement points remain untouched; replace only extension strokes.
+  (vla-put-ExtLine1Suppress obj :vlax-true)
+  (vla-put-ExtLine2Suppress obj :vlax-true)
+  (foreach segment (csad:short-feet spec 200.0)
+    (csast:line space (csast:p base (caar segment) (cadar segment))
+      (csast:p base (caadr segment) (cadadr segment)) layer))
   (setq csad-dimensions (cons obj csad-dimensions))
   (vla-Update obj)
   obj)
@@ -471,7 +492,7 @@
     (setq guide (car guides) guides (cdr guides))
     (csast:line space (csast:p base (caar guide) (cadar guide))
       (csast:p base (caadr guide) (cadadr guide))
-      (if preview "CSA-PREVIEW" "11-GB-Cao Do"))
+      (if preview "CSA-PREVIEW" "01-GB-Grid"))
     (csast:insert space "Cao do" (csast:p base (caadr guide) (cadadr guide))
       (if preview "CSA-PREVIEW" "11-GB-Cao Do") 0.25
       (list (cons "%%P0.000" (csad:leveltext value))))))
@@ -930,7 +951,7 @@
   (if (not issue) (setq issue (csar:callout-error raw data options)))
   issue)
 
-(defun csar:polyline (space base points layer / coords p array object)
+(defun csar:polyline (space base points layer / coords p array object remaining)
   (setq csad-stage "Rebar: create polyline")
   (foreach p points
     (setq coords (append coords (list (+ (car base) (car p)) (+ (cadr base) (cadr p))))))
@@ -939,6 +960,14 @@
   (setq object (csast:track (vla-AddLightWeightPolyline space array)))
   (vla-put-Layer object layer) (vla-put-Elevation object (caddr base))
   (vla-put-Closed object :vlax-false)
+  (if (boundp 'csar-obstacles)
+    (progn
+      (setq remaining points)
+      (while (cdr remaining)
+        (setq csar-obstacles (cons (list "SEG"
+          (csast:p base (caar remaining) (cadar remaining))
+          (csast:p base (caadr remaining) (cadadr remaining))) csar-obstacles)
+          remaining (cdr remaining)))))
   object)
 
 (defun csar:dot (space base point diameter layer / object draw-diameter)
@@ -954,6 +983,20 @@
   (vla-put-ConstantWidth object (/ draw-diameter 2.0))
   object)
 
+(defun csar:leader-marker (space base target layer dotted size / object half)
+  ;; Explicit model-space symbol avoids native LEADER auto-suppression and DIMTSZ.
+  (if dotted
+    (setq object (csast:track (vla-AddCircle space
+      (vlax-3d-point (csast:p base (car target) (cadr target))) (/ size 2.0))))
+    (progn
+      (setq half (* size 0.3535533905932738)
+            object (csar:polyline space base
+              (list (list (- (car target) half) (+ (cadr target) half))
+                    (list (+ (car target) half) (- (cadr target) half))) layer))
+      (vla-put-ConstantWidth object (/ size 8.0))))
+  (vla-put-Layer object layer)
+  object)
+
 (defun csar:leader (space base points layer dotted size style annotation / coords point array object)
   (foreach point points
     (setq coords (append coords (csast:p base (car point) (cadr point)))))
@@ -962,11 +1005,11 @@
   ;; Annotation must be an existing CSA BlockReference, not a missing nil argument.
   ;; AcLeaderType: 0=line/no arrow, 1=spline/no arrow, 2=line/arrow, 3=spline/arrow.
   (setq csad-stage "Leader: AddLeader straight segments with CSA annotation")
-  (setq object (csast:track (vla-AddLeader space array annotation 2)))
+  (setq object (csast:track (vla-AddLeader space array annotation 0)))
   (setq csad-stage "Leader: set layer and DimStyle")
   (vla-put-Layer object layer) (vla-put-StyleName object style)
   (setq csad-stage "Leader: set straight Type / ScaleFactor")
-  (vla-put-Type object 2)
+  (vla-put-Type object 0)
   (vla-put-ScaleFactor object 1.0)
   ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
   (setq csad-stage "Leader: set ArrowheadType and model-space size")
@@ -976,7 +1019,9 @@
   ;; the exact three vertices after the style and annotation have been assigned.
   (setq csad-stage "Leader: restore perpendicular vertical and horizontal coordinates")
   (vla-put-Coordinates object array)
+  (vla-put-Type object 0)
   (vla-Update object)
+  (csar:leader-marker space base (car points) layer dotted size)
   object)
 
 (defun csar:note-route (target low high textlow texthigh height / y far margin)
@@ -1026,7 +1071,94 @@
   (list (- (car destination) (car edge))
         (- (cadr destination) (- (cadr textlow) margin)) 0.0))
 
-(defun csar:note (space base target point bar mark dotted preview height right / layer note low high textatt textlow texthigh route delta value)
+(defun csar:bbox (object / low high)
+  (vla-GetBoundingBox object 'low 'high)
+  (list (vlax-safearray->list low) (vlax-safearray->list high)))
+
+(defun csar:collect-obstacles (space excluded / result object box kind coords points)
+  (vlax-for object space
+    (if (not (member (vlax-vla-object->ename object) excluded))
+      (progn
+        (setq box (vl-catch-all-apply 'csar:bbox (list object)))
+        (if (not (vl-catch-all-error-p box))
+          (progn
+            (setq kind (vla-get-ObjectName object))
+            (if (= kind "AcDbPolyline")
+              (progn
+                (setq coords (vlax-safearray->list (vlax-variant-value (vla-get-Coordinates object))) points nil)
+                (while coords
+                  (setq points (cons (list (car coords) (cadr coords)) points) coords (cddr coords)))
+                (setq points (reverse points))
+                (if (= (vla-get-Closed object) :vlax-true) (setq points (append points (list (car points)))))
+                (while (cdr points)
+                  (setq result (cons (list "SEG" (car points) (cadr points)) result) points (cdr points))))
+              (if (= kind "AcDbLine")
+                (setq result (cons (list "SEG"
+                  (vlax-safearray->list (vlax-variant-value (vla-get-StartPoint object)))
+                  (vlax-safearray->list (vlax-variant-value (vla-get-EndPoint object)))) result))
+                (setq result (cons (cons "BOX" box) result)))))))))
+  result)
+
+(defun csar:add-path-obstacles (base points)
+  (while (cdr points)
+    (setq csar-obstacles (cons (list "SEG"
+      (csast:p base (caar points) (cadar points))
+      (csast:p base (caadr points) (cadadr points))) csar-obstacles)
+      points (cdr points))))
+
+(defun csar:plan-obstacles (base raw data options / top side bar spec dots point radius)
+  ;; Include future reinforcement too, before any labels are positioned.
+  (foreach top (if (= (csar:layers data) 2) (list nil T) (list nil))
+    (setq bar (csar:bar (nth (if top 7 6) data)))
+    (csar:add-path-obstacles base (csar:mainpath raw (car data) (car bar) (csar:anchor-length data (car bar)) top))
+    (foreach side (list nil T)
+      (if (= 1 (csar:flag (nth (if side 3 4) options)))
+        (progn
+          (setq bar (csar:bar (nth (if side 5 4) data)))
+          (csar:add-path-obstacles base (csar:landingpath raw (car data) (car bar)
+            (csar:anchor-length data (car bar)) side top))))))
+  (setq bar (csar:bar (nth 8 data)) radius (/ (csar:display-diameter (car bar)) 2.0))
+  (foreach spec (csar:distribution-specs raw data options)
+    (foreach point (csar:stations (car (nth 2 spec)) (cadr (nth 2 spec)) (cadr bar))
+      (setq csar-obstacles (cons (list "BOX"
+        (csast:p base (- (car point) radius) (- (cadr point) radius))
+        (csast:p base (+ (car point) radius) (+ (cadr point) radius))) csar-obstacles)))))
+
+(defun csar:box-hit (low high obstacle margin / a b corners edges hit)
+  (setq low (list (- (car low) margin) (- (cadr low) margin))
+        high (list (+ (car high) margin) (+ (cadr high) margin))
+        a (nth 1 obstacle) b (nth 2 obstacle))
+  (if (= (car obstacle) "BOX")
+    (and (<= (car low) (car b)) (>= (car high) (car a))
+         (<= (cadr low) (cadr b)) (>= (cadr high) (cadr a)))
+    (progn
+      (setq corners (list low (list (car high) (cadr low)) high (list (car low) (cadr high)) low)
+            hit (or (and (<= (car low) (car a)) (<= (car a) (car high))
+                         (<= (cadr low) (cadr a)) (<= (cadr a) (cadr high)))
+                    (and (<= (car low) (car b)) (<= (car b) (car high))
+                         (<= (cadr low) (cadr b)) (<= (cadr b) (cadr high)))))
+      (while (cdr corners)
+        (if (inters a b (car corners) (cadr corners) T) (setq hit T))
+        (setq corners (cdr corners)))
+      hit)))
+
+(defun csar:label-shift (low high target obstacles right / attempt dx dy movedlow movedhigh hit obstacle result step vertical)
+  (setq attempt 0 step 200.0 vertical (if (> (cadr low) (cadr target)) 1.0 -1.0))
+  (while (and (< attempt 80) (not result))
+    ;; First keep the requested placement, then walk away in rows and columns.
+    (setq dx (* (if right -1.0 1.0) (* (rem attempt 5) step))
+          dy (* vertical (* (fix (/ attempt 5)) step))
+          movedlow (list (+ (car low) dx) (+ (cadr low) dy))
+          movedhigh (list (+ (car high) dx) (+ (cadr high) dy)) hit nil)
+    (if (if right (<= (car movedlow) (+ (car target) 20.0))
+                  (>= (car movedhigh) (- (car target) 20.0))) (setq hit T))
+    (foreach obstacle obstacles
+      (if (csar:box-hit movedlow movedhigh obstacle 20.0) (setq hit T)))
+    (if (not hit) (setq result (list dx dy 0.0)))
+    (setq attempt (1+ attempt)))
+  result)
+
+(defun csar:note (space base target point bar mark dotted preview height right / layer note low high textatt textlow texthigh route delta value shift)
   (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block")
         value (csar:notation bar (csad:get 'barprefix))
         layer (if preview "CSA-PREVIEW" "20-GB-GC")
@@ -1043,6 +1175,15 @@
   (vla-Update note)
   (vla-GetBoundingBox note 'low 'high)
   (vla-GetBoundingBox textatt 'textlow 'texthigh)
+  (setq shift (csar:label-shift (vlax-safearray->list low) (vlax-safearray->list high)
+    (csast:p base (car target) (cadr target)) csar-obstacles right))
+  (if (not shift)
+    (progn (princ "\nNo clear position found for rebar label; move surrounding geometry and retry.") (exit)))
+  (vla-Move note (vlax-3d-point '(0.0 0.0 0.0)) (vlax-3d-point shift))
+  (vla-Update note)
+  (vla-GetBoundingBox note 'low 'high)
+  (vla-GetBoundingBox textatt 'textlow 'texthigh)
+  (setq csar-obstacles (cons (list "BOX" (vlax-safearray->list low) (vlax-safearray->list high)) csar-obstacles))
   (setq low (vlax-safearray->list low) high (vlax-safearray->list high)
         textlow (vlax-safearray->list textlow) texthigh (vlax-safearray->list texthigh)
         route (csar:note-route (csast:p base (car target) (cadr target)) low high textlow texthigh height)
@@ -1073,7 +1214,7 @@
            (<= (/ (distance (car line) (cadr line)) (cadr transverse)) 2000))
     (progn
       (setq dots (csar:stations (car line) (cadr line) (cadr transverse))
-            dot (nth (fix (* (if (= region "FLIGHT") (if top 0.7 0.5) 0.8)
+            dot (nth (fix (* (if (= region "FLIGHT") (if top 0.7 0.5) (if (= region "UPPER") 0.3 0.65))
                             (1- (length dots)))) dots)
             first (csar:atx (car axis) (cadr axis) (- (car dot) 50.0))
             second (csar:atx (car axis) (cadr axis) (+ (car dot) 50.0)))
@@ -1389,7 +1530,7 @@
 
 (defun csad:render (preview / *error* points base doc space csast-created csast-app
                             started old e layer coords array pl o minx maxx miny maxy
-                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage csad-dimensions)
+                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage csad-dimensions csar-obstacles)
   (defun *error* (msg)
     (foreach o csast-created (vl-catch-all-apply 'vla-Delete (list o)))
     (if started (vl-catch-all-apply 'vla-EndUndoMark (list doc)))
@@ -1434,7 +1575,7 @@
     (progn
       (if (or (= "1" (csad:get 'dims)) (= "1" (csad:get 'details)))
         (setq need (cons "04-GB-Dim" need)))
-      (if (= "1" (csad:get 'levels)) (setq need (cons "11-GB-Cao Do" need)))
+      (if (= "1" (csad:get 'levels)) (setq need (append '("01-GB-Grid" "11-GB-Cao Do") need)))
       (if (= "1" (csad:get 'symbol)) (setq need (cons "12-GB-Ky Hieu" need)))))
   (if (and (not preview) (= "1" (csad:get 'rebar)))
     (setq need (append need '("18-GB-Reinf" "20-GB-GC"))))
@@ -1497,14 +1638,16 @@
             (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
         (if (and (= "1" (csad:get 'steps)) (/= "1" (csad:get 'details)))
           (csad:draw-steps space base (csad:get 'rawpoints) (csad:get 'section-options) gap height preview))
-        (if csad-dimensions (csad:fixed-extensions csad-dimensions 200.0))
         (setq csad-stage "Elevations: horizontal guides and Cao do blocks")
         (if (= "1" (csad:get 'levels))
           (csad:draw-levels space base (csad:get 'rawpoints) bottom top preview))
         (setq csad-stage "Rebar: start drawing")
         (if (= "1" (csad:get 'rebar))
+          (progn
+          (setq csar-obstacles (csar:collect-obstacles space old))
+          (csar:plan-obstacles base (csad:get 'rawpoints) (csad:get 'rebar-data) (csad:get 'section-options))
           (csar:render space base (csad:get 'rawpoints) (csad:get 'rebar-data)
-            (csad:get 'section-options) preview gap height))
+            (csad:get 'section-options) preview gap height)))
         ;; Replace only previously tagged previews after new geometry succeeds.
         (setq csad-stage "Section: replace old preview / Regen")
         (foreach e old (if (not (entdel e)) (progn (princ "\nCannot delete old preview.") (exit))))
@@ -1536,5 +1679,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.4 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.5 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

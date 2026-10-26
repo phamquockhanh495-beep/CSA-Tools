@@ -25,7 +25,7 @@ class PureLisp:
             'eq': lambda a, b: a == b, 'equal': lambda a, b: a == b, 'fix': int, '1+': lambda n: n+1,
             '1-': lambda n: n-1,
             'type': lambda v: Symbol('STR') if isinstance(v, str) else Symbol('REAL'),
-            'abs': abs, 'null': lambda v: not truth(v), 'length': lambda v: len(v or []),
+            'rem': lambda a,b:a%b, 'abs': abs, 'null': lambda v: not truth(v), 'length': lambda v: len(v or []),
             'min': min, 'max': max, 'nth': lambda i, v: v[i] if i < len(v) else None,
             'car': lambda v: v[0] if v else None,
             'cdr': lambda v: v[1] if isinstance(v, tuple) else (v[1:] if v else None),

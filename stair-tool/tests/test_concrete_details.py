@@ -39,6 +39,17 @@ class ConcreteDetailsTests(unittest.TestCase):
             self.assertEqual(guide[0],[self.raw[0][0]-500,y])
             self.assertEqual(guide[1],[self.raw[5][0]+500,y])
 
+    def test_short_feet_cut_long_extensions_without_changing_measurement(self):
+        for spec in self.specs():
+            before=self.pure.call('csad:dim-measure',spec)
+            feet=self.pure.call('csad:short-feet',spec,200)
+            for a,b in feet:
+                self.assertLessEqual(self.pure.host['distance'](a,b),200.000001)
+            self.assertEqual(self.pure.call('csad:dim-measure',spec),before)
+            if spec[0]=='flight_run':
+                self.assertEqual(len(feet),2)
+                for a,b in feet:self.assertAlmostEqual(self.pure.host['distance'](a,b),200)
+
     def test_workbook_parameter_contract_matches_geometry(self):
         self.assertIsNone(self.pure.call('csad:detail-error', self.raw, self.metadata))
         wrong = self.metadata.copy()

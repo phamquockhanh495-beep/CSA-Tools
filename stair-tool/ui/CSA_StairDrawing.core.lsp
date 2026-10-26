@@ -219,7 +219,7 @@
 
 (defun csad:render (preview / *error* points base doc space csast-created csast-app
                             started old e layer coords array pl o minx maxx miny maxy
-                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage csad-dimensions)
+                            height titleheight gap specs spec ds p toppt bottom top need name issue entities csad-stage csad-dimensions csar-obstacles)
   (defun *error* (msg)
     (foreach o csast-created (vl-catch-all-apply 'vla-Delete (list o)))
     (if started (vl-catch-all-apply 'vla-EndUndoMark (list doc)))
@@ -264,7 +264,7 @@
     (progn
       (if (or (= "1" (csad:get 'dims)) (= "1" (csad:get 'details)))
         (setq need (cons "04-GB-Dim" need)))
-      (if (= "1" (csad:get 'levels)) (setq need (cons "11-GB-Cao Do" need)))
+      (if (= "1" (csad:get 'levels)) (setq need (append '("01-GB-Grid" "11-GB-Cao Do") need)))
       (if (= "1" (csad:get 'symbol)) (setq need (cons "12-GB-Ky Hieu" need)))))
   (if (and (not preview) (= "1" (csad:get 'rebar)))
     (setq need (append need '("18-GB-Reinf" "20-GB-GC"))))
@@ -327,14 +327,16 @@
             (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
         (if (and (= "1" (csad:get 'steps)) (/= "1" (csad:get 'details)))
           (csad:draw-steps space base (csad:get 'rawpoints) (csad:get 'section-options) gap height preview))
-        (if csad-dimensions (csad:fixed-extensions csad-dimensions 200.0))
         (setq csad-stage "Elevations: horizontal guides and Cao do blocks")
         (if (= "1" (csad:get 'levels))
           (csad:draw-levels space base (csad:get 'rawpoints) bottom top preview))
         (setq csad-stage "Rebar: start drawing")
         (if (= "1" (csad:get 'rebar))
+          (progn
+          (setq csar-obstacles (csar:collect-obstacles space old))
+          (csar:plan-obstacles base (csad:get 'rawpoints) (csad:get 'rebar-data) (csad:get 'section-options))
           (csar:render space base (csad:get 'rawpoints) (csad:get 'rebar-data)
-            (csad:get 'section-options) preview gap height))
+            (csad:get 'section-options) preview gap height)))
         ;; Replace only previously tagged previews after new geometry succeeds.
         (setq csad-stage "Section: replace old preview / Regen")
         (foreach e old (if (not (entdel e)) (progn (princ "\nCannot delete old preview.") (exit))))
@@ -366,5 +368,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.4 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.5 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

@@ -421,6 +421,53 @@ class RebarTests(unittest.TestCase):
         bad[8], bad[10] = '12a0.001', 20
         self.assertIn('2000', self.pure.call('csar:error', self.raw, self.concrete, bad, self.options))
 
+    def test_explicit_marker_size_in_model_mm(self):
+        for dotted in (None,True):
+            pure=PureLisp(self.forms);props={}
+            pure.host.update({
+                'csast:p':lambda base,x,y:[base[0]+x,base[1]+y,base[2]],
+                'vlax-3d-point':lambda value:value,
+                'csast:track':lambda obj:obj,
+                'csar:polyline':lambda space,base,pts,layer:props.update(points=pts) or 'tick',
+                'vla-AddCircle':lambda space,point,radius:props.update(center=point,radius=radius) or 'circle',
+                'vla-put-Layer':lambda *args:None,
+                'vla-put-ConstantWidth':lambda obj,w:props.update(width=w)})
+            pure.call('csar:leader-marker',None,[100,200,0],[20,30],'20-GB-GC',dotted,200)
+            if dotted:
+                self.assertEqual(props['radius'],100)
+                self.assertEqual(props['center'],[120,230,0])
+            else:
+                self.assertAlmostEqual(math.dist(*props['points']),200)
+                self.assertEqual(props['width'],25)
+                self.assertEqual([(a+b)/2 for a,b in zip(*props['points'])],[20,30])
+
+    def test_collision_plan_includes_future_rebar_before_placing_notes(self):
+        pure=PureLisp(self.forms);paths=[]
+        pure.host['csar:add-path-obstacles']=lambda base,points:paths.append(points)
+        pure.host['csast:p']=lambda base,x,y:[base[0]+x,base[1]+y,base[2]]
+        data=self.data.copy();data[10]=20
+        pure.defs['plan-test']=['defun','plan-test',[],['setq','csar-obstacles',None],
+            ['csar:plan-obstacles',['quote',[100,200,0]],['quote',self.raw],
+             ['quote',data],['quote',self.options]]]
+        boxes=pure.call('plan-test')
+        self.assertEqual(len(paths),6)
+        self.assertTrue(all(path and len(path)>3 for path in paths))
+        self.assertGreater(len(boxes),20)
+        self.assertTrue(all(box[0]=='BOX' for box in boxes))
+
+    def test_label_moves_clear_of_segments_and_other_labels(self):
+        low,high,target=[100,-220],[400,-150],[0,0]
+        obstacles=[['SEG',[300,-400],[300,100]],['BOX',[100,-500],[500,-300]]]
+        shift=self.pure.call('csar:label-shift',low,high,target,obstacles,True)
+        self.assertIsNotNone(shift)
+        self.assertNotEqual(shift,[0,0,0])
+        a=[low[i]+shift[i] for i in (0,1)];b=[high[i]+shift[i] for i in (0,1)]
+        self.assertGreater(a[0],target[0])
+        for obstacle in obstacles:self.assertFalse(self.pure.call('csar:box-hit',a,b,obstacle,20))
+        self.assertEqual(self.pure.call('csar:label-shift',low,high,target,[],True),[0,0,0])
+        self.assertIsNone(self.pure.call('csar:label-shift',low,high,target,
+                          [['BOX',[-10000,-10000],[10000,10000]]],True))
+
     def test_native_leader_arrow_types_are_per_entity(self):
         for dotted, expected in [(None, 4), (True, 12)]:
             pure, props = PureLisp(self.forms), {}
@@ -438,6 +485,7 @@ class RebarTests(unittest.TestCase):
                 'vlax-make-safearray': lambda *args: [],
                 'vlax-safearray-fill': lambda arr, coords: arr.extend(coords),
                 'vla-AddLeader': add_leader,
+                'csar:leader-marker': lambda *args: props.update(marker=args),
                 'csast:track': lambda obj: obj,
                 'vla-put-Layer': lambda *args: None,
                 'vla-put-StyleName': lambda *args: None,
@@ -457,8 +505,10 @@ class RebarTests(unittest.TestCase):
             self.assertEqual(props['annotation'], 'CSA note BlockReference')
             self.assertEqual(props['arrow'], expected)
             self.assertEqual(props['scale'], 1)
-            self.assertEqual(props['kind'], 2) # acLineWithArrow; 0 is line WITHOUT arrow
-            self.assertEqual(props['type'], 2)
+            self.assertEqual(props['kind'], 0) # explicit marker drawn separately
+            self.assertEqual(props['type'], 0)
+            self.assertEqual(props['marker'][2], [1,2])
+            self.assertEqual(props['marker'][-2:], (dotted,60 if dotted else 100))
             self.assertEqual(props['size'], 60 if dotted else 100)
             self.assertEqual(props['final_coords'], props['coords'])
             self.assertEqual(props['coords'], [11,22,30,13,24,30,15,24,30])

@@ -445,13 +445,13 @@
     ],
     "dimension_extension_lines": {
       "model_mm": 200,
-      "DIMFXLON": 1,
-      "DIMFXL": "200 / effective DIMSCALE",
+      "DIMFXLON": "not used for v5.5 drawing",
+      "DIMFXL": "not used for v5.5 drawing",
       "scope": "New dimension entities only; existing styles preserved",
-      "method": "Native DIMOVERRIDE via command-s, new dimensions grouped by effective scale; no manual DSTYLE write"
+      "method": "Native extensions suppressed; separate tracked strokes clipped to max 200 model mm, true dimension witness points retained"
     },
     "upper_dimension_chain_offset_mm": 775,
-    "floor_level_guides": "Horizontal, left outline -500 to right outline +500; Cao do at aligned right endpoints"
+    "floor_level_guides": "Existing layer 01-GB-Grid; Cao do blocks on 11-GB-Cao Do"
   },
   "reinforcement_drafting": {
     "leader_arrowheads": {
@@ -483,10 +483,9 @@
     },
     "longitudinal_axis_offset": "BJ28 to drawn axis, per user image 2 (v4.2); no diameter/2 term",
     "leader_type": {
-      "name": "acLineWithArrow",
-      "value": 2,
-      "line_no_arrow_value": 0,
-      "spline_with_arrow_value": 3
+      "name": "acLineNoArrow",
+      "value": 0,
+      "visible_markers": "Separate tracked model-space thick tick / open circle, sized by UI"
     },
     "leader_sizes_model_mm": {
       "Dot blank": 60,
@@ -559,6 +558,7 @@
     "plate_flight_tail_offsets_from_lower_landing_mm": {
       "top": 10,
       "bottom": 0
-    }
+    },
+    "label_collision_placement": "Block bounding boxes, 20 mm clearance, up to 80 candidates, strokes and boxes; leader crossings not guaranteed"
   }
 }
