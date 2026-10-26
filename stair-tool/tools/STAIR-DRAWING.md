@@ -16,6 +16,16 @@ Tải `CSA_StairDrawing.lsp` tại thư mục này. File đã gộp toàn bộ h
 
 Sau khi thay đổi Excel phải bấm **Load / Reload Excel**; không có đồng bộ nền. Nút Close chỉ đóng giao diện, không tự xóa preview để người dùng kiểm tra ngoài viewport. Khi đổi DWG, dữ liệu Excel đã nạp vẫn có thể dùng, nhưng tài nguyên và đơn vị của DWG đích được kiểm tra lại trước mỗi lần vẽ.
 
+## Sửa lỗi dừng khi bố trí ghi chú — v5.5.2
+
+Thông báo `No clear position found for rebar label` xuất phát từ bộ tránh va chạm, không phải kiểm tra chiều dài neo. Bản trước coi vùng bao toàn bộ DIMENSION là vùng kín và chỉ thử dịch ngang về phía điểm chỉ; hết 80 vị trí thử thì gọi `exit`, hủy mặt cắt đang tạo.
+
+- Kiểm tra DIM bằng các nét và chữ trong block hiển thị của DIM; bỏ các điểm định nghĩa không hiển thị. Khi block hiển thị chưa có/không đọc được, dùng biên vùng bao làm đường tránh thay vì chặn toàn bộ khoảng trống bên trong. LEADER kiểm tra theo từng đoạn nét.
+- Tìm tối đa 144 vị trí theo lưới 200 mm, thử cả hai hướng ngang, giữ phía trái/phải và trên/dưới của ghi chú. Giữ khoảng hở 20 mm với đối tượng được kiểm tra.
+- Nếu các vị trí gần đều vướng, đưa ghi chú ra hàng ngoài vượt các vật cản cùng dải X. Không gọi `exit` chỉ vì bố trí ghi chú. Nếu phải dịch xa, command history báo số hiệu thép để kiểm tra leader dài. Chưa đảm bảo tránh mọi giao cắt giữa các nhánh leader.
+
+APPLOAD **v5.5.2**, xác nhận dòng phiên bản rồi tạo Preview mới. Bộ kiểm tra offline có tình huống vùng bao DIM rỗng, vật cản lớn, tìm vị trí hai phía và tọa độ chèn khác gốc. Chưa chạy trực tiếp trong AutoCAD; các ghi chú đã tạo trước đó không tự đổi vị trí.
+
 ## Bản v5.5.1
 
 - Đầu Architectural tick là nét chéo rộng 1/8 chiều dài, Dot blank là vòng tròn rỗng. Kích thước theo ô Tick size / Dot blank size, đơn vị mm Model. Đây là entity riêng được đánh dấu/quản lý cùng bản vẽ; LEADER có Type **Line with no arrow** có chủ đích, tránh AutoCAD tự tắt đầu mũi khi cập nhật hoặc đoạn đầu ngắn. Properties của LEADER không điều khiển kích thước ký hiệu riêng; thay thông số trên UI rồi tạo Preview mới.

@@ -576,28 +576,59 @@
   (vla-GetBoundingBox object 'low 'high)
   (list (vlax-safearray->list low) (vlax-safearray->list high)))
 
-(defun csar:collect-obstacles (space excluded / result object box kind coords points)
+(defun csar:box-edges (box / low high corners result)
+  (setq low (car box) high (cadr box)
+        corners (list low (list (car high) (cadr low)) high (list (car low) (cadr high)) low))
+  (while (cdr corners)
+    (setq result (cons (list "SEG" (car corners) (cadr corners)) result) corners (cdr corners)))
+  result)
+
+(defun csar:dimension-obstacles (object / data blockname entity result child)
+  ;; The anonymous dimension block contains the displayed strokes/text in WCS.
+  ;; Its aggregate bbox also encloses empty space up to the definition points.
+  (setq data (entget (vlax-vla-object->ename object)) blockname (cdr (assoc 2 data))
+        entity (if blockname (tblobjname "BLOCK" blockname)))
+  (if entity
+    (progn
+      (setq entity (entnext entity))
+      (while (and entity (/= (cdr (assoc 0 (entget entity))) "ENDBLK"))
+        (setq child (csar:object-obstacles (vlax-ename->vla-object entity)))
+        (setq result (append child result) entity (entnext entity)))
+      result)
+    ;; A not-yet-regenerated dimension may have no display block. Boundaries
+    ;; are conservative guides; never turn the whole empty rectangle solid.
+    (csar:box-edges (csar:bbox object))))
+
+(defun csar:object-obstacles (object / kind box coords points result)
+  (setq kind (vla-get-ObjectName object))
+  (cond
+    ((wcmatch kind "*Dimension")
+      (setq result (vl-catch-all-apply 'csar:dimension-obstacles (list object)))
+      (if (vl-catch-all-error-p result) (csar:box-edges (csar:bbox object)) result))
+    ((= kind "AcDbPoint") nil) ; invisible dimension definition points
+    ((or (= kind "AcDbPolyline") (= kind "AcDbLeader"))
+      (setq coords (vlax-safearray->list (vlax-variant-value (vla-get-Coordinates object))))
+      (while coords
+        (setq points (cons (list (car coords) (cadr coords)) points)
+              coords (if (= kind "AcDbLeader") (cdr (cddr coords)) (cddr coords))))
+      (setq points (reverse points))
+      (if (and (= kind "AcDbPolyline") (= (vla-get-Closed object) :vlax-true))
+        (setq points (append points (list (car points)))))
+      (while (cdr points)
+        (setq result (cons (list "SEG" (car points) (cadr points)) result) points (cdr points)))
+      result)
+    ((= kind "AcDbLine")
+      (list (list "SEG"
+        (vlax-safearray->list (vlax-variant-value (vla-get-StartPoint object)))
+        (vlax-safearray->list (vlax-variant-value (vla-get-EndPoint object))))))
+    (T (list (cons "BOX" (csar:bbox object))))))
+
+(defun csar:collect-obstacles (space excluded / result object items)
   (vlax-for object space
     (if (not (member (vlax-vla-object->ename object) excluded))
       (progn
-        (setq box (vl-catch-all-apply 'csar:bbox (list object)))
-        (if (not (vl-catch-all-error-p box))
-          (progn
-            (setq kind (vla-get-ObjectName object))
-            (if (= kind "AcDbPolyline")
-              (progn
-                (setq coords (vlax-safearray->list (vlax-variant-value (vla-get-Coordinates object))) points nil)
-                (while coords
-                  (setq points (cons (list (car coords) (cadr coords)) points) coords (cddr coords)))
-                (setq points (reverse points))
-                (if (= (vla-get-Closed object) :vlax-true) (setq points (append points (list (car points)))))
-                (while (cdr points)
-                  (setq result (cons (list "SEG" (car points) (cadr points)) result) points (cdr points))))
-              (if (= kind "AcDbLine")
-                (setq result (cons (list "SEG"
-                  (vlax-safearray->list (vlax-variant-value (vla-get-StartPoint object)))
-                  (vlax-safearray->list (vlax-variant-value (vla-get-EndPoint object)))) result))
-                (setq result (cons (cons "BOX" box) result)))))))))
+        (setq items (vl-catch-all-apply 'csar:object-obstacles (list object)))
+        (if (not (vl-catch-all-error-p items)) (setq result (append items result))))))
   result)
 
 (defun csar:add-path-obstacles (base points)
@@ -643,21 +674,40 @@
         (setq corners (cdr corners)))
       hit)))
 
-(defun csar:label-shift (low high target obstacles right / attempt dx dy movedlow movedhigh hit obstacle result step vertical)
+(defun csar:label-outside-shift (low high target obstacles right vertical / dx dy leftedge rightedge boundary obstacle a b)
+  ;; Guaranteed clear row beyond every obstacle intersecting this label's X
+  ;; interval. Unrelated objects elsewhere in model space do not extend it.
+  (setq dx (if right (max 0.0 (- (+ (car target) 40.0) (car low)))
+                            (min 0.0 (- (- (car target) 40.0) (car high))))
+        leftedge (+ (car low) dx) rightedge (+ (car high) dx)
+        boundary (if (> vertical 0.0) (cadr low) (cadr high)))
+  (foreach obstacle obstacles
+    (setq a (nth 1 obstacle) b (nth 2 obstacle))
+    (if (and (<= (- leftedge 20.0) (max (car a) (car b)))
+             (>= (+ rightedge 20.0) (min (car a) (car b))))
+      (setq boundary (if (> vertical 0.0) (max boundary (cadr a) (cadr b))
+                                                (min boundary (cadr a) (cadr b))))))
+  (setq dy (if (> vertical 0.0) (- (+ boundary 40.0) (cadr low))
+                               (- (- boundary 40.0) (cadr high))))
+  (list dx dy 0.0))
+
+(defun csar:label-shift (low high target obstacles right / attempt column dx dy movedlow movedhigh hit obstacle result step vertical)
   (setq attempt 0 step 200.0 vertical (if (> (cadr low) (cadr target)) 1.0 -1.0))
-  (while (and (< attempt 80) (not result))
-    ;; First keep the requested placement, then walk away in rows and columns.
-    (setq dx (* (if right -1.0 1.0) (* (rem attempt 5) step))
-          dy (* vertical (* (fix (/ attempt 5)) step))
+  (while (and (< attempt 144) (not result))
+    ;; Keep the requested position first. Alternate inward/outward columns;
+    ;; the previous inward-only walk could never escape a wide obstruction.
+    (setq column (nth (rem attempt 9) '(0 -1 1 -2 2 -3 3 -4 4))
+          dx (* (if right 1.0 -1.0) (* column step))
+          dy (* vertical (* (fix (/ attempt 9)) step))
           movedlow (list (+ (car low) dx) (+ (cadr low) dy))
           movedhigh (list (+ (car high) dx) (+ (cadr high) dy)) hit nil)
     (if (if right (<= (car movedlow) (+ (car target) 20.0))
                   (>= (car movedhigh) (- (car target) 20.0))) (setq hit T))
     (foreach obstacle obstacles
-      (if (csar:box-hit movedlow movedhigh obstacle 20.0) (setq hit T)))
+      (if (and (not hit) (csar:box-hit movedlow movedhigh obstacle 20.0)) (setq hit T)))
     (if (not hit) (setq result (list dx dy 0.0)))
     (setq attempt (1+ attempt)))
-  result)
+  (if result result (csar:label-outside-shift low high target obstacles right vertical)))
 
 (defun csar:note (space base target point bar mark dotted preview height right / layer note low high textatt textlow texthigh route delta value shift)
   (setq csad-stage (strcat "Rebar mark " (itoa mark) ": insert CSA note block")
@@ -676,10 +726,11 @@
   (vla-Update note)
   (vla-GetBoundingBox note 'low 'high)
   (vla-GetBoundingBox textatt 'textlow 'texthigh)
+  (setq csad-stage (strcat "Rebar mark " (itoa mark) ": avoid label collisions"))
   (setq shift (csar:label-shift (vlax-safearray->list low) (vlax-safearray->list high)
     (csast:p base (car target) (cadr target)) csar-obstacles right))
-  (if (not shift)
-    (progn (princ "\nNo clear position found for rebar label; move surrounding geometry and retry.") (exit)))
+  (if (or (> (abs (car shift)) 800.0) (> (abs (cadr shift)) 3000.0))
+    (princ (strcat "\nRebar mark " (itoa mark) ": placed on an outer clear row; review the long leader.")))
   (vla-Move note (vlax-3d-point '(0.0 0.0 0.0)) (vlax-3d-point shift))
   (vla-Update note)
   (vla-GetBoundingBox note 'low 'high)

@@ -483,8 +483,71 @@ class RebarTests(unittest.TestCase):
         self.assertGreater(a[0],target[0])
         for obstacle in obstacles:self.assertFalse(self.pure.call('csar:box-hit',a,b,obstacle,20))
         self.assertEqual(self.pure.call('csar:label-shift',low,high,target,[],True),[0,0,0])
-        self.assertIsNone(self.pure.call('csar:label-shift',low,high,target,
-                          [['BOX',[-10000,-10000],[10000,10000]]],True))
+        blocked=[['BOX',[-10000,-10000],[10000,10000]]]
+        shift=self.pure.call('csar:label-shift',low,high,target,blocked,True)
+        a=[low[i]+shift[i] for i in (0,1)];b=[high[i]+shift[i] for i in (0,1)]
+        self.assertFalse(self.pure.call('csar:box-hit',a,b,blocked[0],20))
+
+    def test_label_search_escapes_outward_on_both_sides(self):
+        # Mark 4 above the landing was constrained to inward-only candidates.
+        for right in (True, None):
+            low,high=([100,200],[400,300]) if right else ([-400,200],[-100,300])
+            wall=['BOX',[50,-10000],[450,10000]] if right else ['BOX',[-450,-10000],[-50,10000]]
+            shift=self.pure.call('csar:label-shift',low,high,[0,0],[wall],right)
+            self.assertEqual(shift[1],0)  # escape sideways, not a 10 m leader
+            self.assertGreater(shift[0],0) if right else self.assertLess(shift[0],0)
+            a=[low[i]+shift[i] for i in (0,1)];b=[high[i]+shift[i] for i in (0,1)]
+            self.assertFalse(self.pure.call('csar:box-hit',a,b,wall,20))
+
+    def test_label_fallback_stays_clear_for_all_sides_and_world_origins(self):
+        for base in ([0,0],[40000,85000],[-70000,-90000]):
+            for right in (True,None):
+                for above in (True,None):
+                    x=100 if right else -400;y=200 if above else -300
+                    low=[base[0]+x,base[1]+y];high=[low[0]+300,low[1]+100]
+                    # Fully blocks the local search; nearby huge object must
+                    # not affect fallback if it does not overlap the X range.
+                    obstacles=[['BOX',[base[0]-5000,base[1]-5000],[base[0]+5000,base[1]+5000]],
+                               ['SEG',[base[0]+9000,base[1]-1e8],[base[0]+9000,base[1]+1e8]]]
+                    shift=self.pure.call('csar:label-shift',low,high,base,obstacles,right)
+                    a=[low[i]+shift[i] for i in (0,1)];b=[high[i]+shift[i] for i in (0,1)]
+                    self.assertLess(abs(shift[1]),6000)
+                    self.assertGreater(a[0],base[0]+20) if right else self.assertLess(b[0],base[0]-20)
+                    self.assertGreater(a[1],base[1]) if above else self.assertLess(b[1],base[1])
+                    for obstacle in obstacles:
+                        self.assertFalse(self.pure.call('csar:box-hit',a,b,obstacle,20))
+        self.assertNotIn('exit',list(walk(self.pure.defs['csar:note'])))
+
+    def test_dimension_display_geometry_does_not_block_empty_interior(self):
+        import fnmatch
+        pure=PureLisp(self.forms)
+        objects={'dim':'AcDbRotatedDimension','stroke':'AcDbLine','text':'AcDbMText','point':'AcDbPoint'}
+        entities={'dim':[(2,'*D1')],'stroke':[(0,'LINE')],'text':[(0,'MTEXT')],
+                  'point':[(0,'POINT')],'end':[(0,'ENDBLK')]}
+        sequence={'block':'stroke','stroke':'text','text':'point','point':'end'}
+        def caught(fn,args):
+            try:return pure.call(fn,*args)
+            except Exception as error:return error
+        pure.host.update({
+            'wcmatch':lambda name,pattern:fnmatch.fnmatchcase(name,pattern),
+            'vl-catch-all-apply':caught,'vl-catch-all-error-p':lambda v:isinstance(v,Exception),
+            'vlax-vla-object->ename':lambda obj:obj,'vlax-ename->vla-object':lambda obj:obj,
+            'entget':lambda obj:entities[obj], 'assoc':lambda key,data:next((v for v in data if v[0]==key),None),
+            'tblobjname':lambda table,name:'block', 'entnext':lambda name:sequence.get(name),
+            'vla-get-ObjectName':lambda obj:objects[obj],
+            'vla-get-StartPoint':lambda obj:[0,1000,0], 'vla-get-EndPoint':lambda obj:[2000,1000,0],
+            'vlax-safearray->list':lambda a:a,'vlax-variant-value':lambda a:a,
+            'csar:bbox':lambda obj:([ [900,1020,0],[1100,1080,0] ] if obj=='text' else [[0,0,0],[2000,1100,0]])})
+        obstacles=pure.call('csar:object-obstacles','dim')
+        self.assertEqual(len(obstacles),2)  # only displayed line and text
+        self.assertTrue(all(not pure.call('csar:box-hit',[200,200],[500,300],o,20) for o in obstacles))
+        self.assertTrue(any(pure.call('csar:box-hit',[950,1030],[1000,1050],o,20) for o in obstacles))
+        self.assertTrue(any(pure.call('csar:box-hit',[200,980],[500,1020],o,20) for o in obstacles))
+        # No anonymous display block yet: retain boundary guides, not a solid box.
+        pure.host['tblobjname']=lambda *args:None
+        fallback=pure.call('csar:object-obstacles','dim')
+        self.assertEqual(len(fallback),4)
+        self.assertTrue(all(not pure.call('csar:box-hit',[200,200],[500,300],o,20) for o in fallback))
 
     def test_native_leader_arrow_types_are_per_entity(self):
         for dotted, expected in [(None, 4), (True, 12)]:

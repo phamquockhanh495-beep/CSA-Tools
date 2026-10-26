@@ -61,3 +61,5 @@ VBA layer constants now target native CSA layers. Existing layer properties are 
 `vba/modCSAStairAdapter.bas` provides `CSA_MissingStandards`, tag-based block insertion helpers and aligned dimensions using an existing style. It has no UDT or Excel dependency and can be imported independently for later integration. The Lisp acceptance tool requires no VBA import.
 
 Offline validation: `python3 -m unittest discover -s stair-tool/tests -v`. Fetch the recorded source commit from `origin/main` first if not present locally. These checks compare names/tags/attributes with the native CSV export and inspect source structure; they do not compile VBA or execute AutoCAD.
+
+Version 5.5.2 fixes label-placement aborts: dimension display strokes/text replace solid aggregate dimension bounds, leader obstacles use segments, and the search tries both horizontal directions. After 144 local candidates, an outer clear row is used instead of aborting the section; distant placements print the rebar mark for review. Native AutoCAD verification remains pending.
