@@ -16,6 +16,14 @@ Tải `CSA_StairDrawing.lsp` tại thư mục này. File đã gộp toàn bộ h
 
 Sau khi thay đổi Excel phải bấm **Load / Reload Excel**; không có đồng bộ nền. Nút Close chỉ đóng giao diện, không tự xóa preview để người dùng kiểm tra ngoài viewport. Khi đổi DWG, dữ liệu Excel đã nạp vẫn có thể dùng, nhưng tài nguyên và đơn vị của DWG đích được kiểm tra lại trước mỗi lần vẽ.
 
+## Sửa lỗi v5.3.1: bad function 120.0
+
+Bản v5.3 dùng tham số `length` trùng hàm AutoLISP `LENGTH` trong ba helper neo. Với BJ38=10, d12, giá trị neo là 120.0. Khi hàm con gọi LENGTH, AutoCAD cố gọi số 120.0 như hàm và dừng ở Section preflight. Đây là lỗi mã, không phải lỗi ô số bậc 0.
+
+v5.3.1 đổi tham số sang `embedment-mm`, đồng thời đổi biến tương tự trong planner dim. Bộ kiểm tra offline đã bổ sung phát hiện va chạm tên hàm/biến qua phạm vi động. Nạp lại file bằng APPLOAD, xác nhận **v5.3.1**, rồi Reload Excel và Preview. Nếu cần, mở lại AutoCAD trước khi nạp bản mới để tránh trạng thái symbol của Lisp cũ.
+
+Sau sửa, chiều dài 10d=120 mm vẫn phải đạt kiểm tra hình học neo riêng; bản sửa không tăng/giảm giá trị Excel để ép vẽ.
+
 ## Bản v5.3 — neo Excel và cổ thang
 
 Neo dùng **BJ38 × đường kính từng thanh**, thay quy tắc 200 mm. Neo trong dầm đo dọc tim thanh **từ mặt dầm tới đầu neo**, gồm đoạn đi vào và đoạn đứng; không tính móc 2d hay phần đi qua cổ ngoài dầm. Xem quy tắc chi tiết và cách kiểm tra bên dưới.

@@ -303,7 +303,7 @@
 
 (defun csad:detail-specs (raw gap / specs p1 p2 p3 p4 p5 p6 p7 p8 p9
                                 p11 p12 p14 p15 p18 p19 p21 p22 p23
-                                minx maxx miny maxy uppery p q mid length dx dy)
+                                minx maxx miny maxy uppery p q mid flight-span dx dy)
   (setq p1 (nth 0 raw) p2 (nth 1 raw) p3 (nth 2 raw) p4 (nth 3 raw)
         p5 (nth 4 raw) p6 (nth 5 raw) p7 (nth 6 raw) p8 (nth 7 raw) p9 (nth 8 raw)
         p11 (nth 10 raw) p12 (nth 11 raw) p14 (nth 13 raw) p15 (nth 14 raw)
@@ -331,8 +331,8 @@
   (setq specs (csad:addspec "upper_step_rise" "V" p4 p5 (list (- (car p4) gap) (cadr p5)) specs))
   ;; Perpendicular thickness: project the upper midspan onto the true soffit.
   (setq p (csad:mid p3 p4) q (csad:project p p14 p15)
-        mid (csad:mid p q) length (distance p3 p4)
-        dx (/ (- (car p4) (car p3)) length) dy (/ (- (cadr p4) (cadr p3)) length))
+        mid (csad:mid p q) flight-span (distance p3 p4)
+        dx (/ (- (car p4) (car p3)) flight-span) dy (/ (- (cadr p4) (cadr p3)) flight-span))
   (setq specs (csad:addspec "inclined_slab_normal" "A" q p
     (list (- (car mid) (* dx gap)) (- (cadr mid) (* dy gap))) specs))
   (reverse specs))
@@ -578,14 +578,14 @@
   (if (> (csar:path-clearance (list tip second) polygon)
          (csar:path-clearance (list tip first) polygon)) second first))
 
-(defun csar:beam-leg (entry bend length diameter direction polygon / remaining tip)
+(defun csar:beam-leg (entry bend embedment-mm diameter direction polygon / remaining tip)
   ;; Length is developed INSIDE the support, from entry face; 2d is additional.
   ;; If the bend is in a neck ABOVE the beam, entry is later on the vertical
-  ;; leg. The neck traversal is not part of the length embedded in the beam.
+  ;; leg. The neck traversal is not part of the embedment-mm embedded in the beam.
   (setq remaining (if (and (< (abs (- (car entry) (car bend))) 0.000001)
                           (> (* direction (- (cadr entry) (cadr bend))) 0.0))
-                    (+ length (distance entry bend))
-                    (- length (distance entry bend))))
+                    (+ embedment-mm (distance entry bend))
+                    (- embedment-mm (distance entry bend))))
   (if (> remaining 0.001)
     (progn
       (setq tip (list (car bend) (+ (cadr bend) (* direction remaining))))
@@ -602,13 +602,13 @@
     ;; The inclined body has not reached the beam before bending in a neck.
     (list (car bend) (if upper floor ceiling))))
 
-(defun csar:beam-flight-end (raw cover diameter length upper top / beam axis entry bend path near polygon)
+(defun csar:beam-flight-end (raw cover diameter embedment-mm upper top / beam axis entry bend path near polygon)
   (setq beam (csar:support-beam raw upper) axis (csar:flight-axis raw cover top)
         polygon (csad:cleanpoints raw)
         bend (csar:atx (car axis) (cadr axis)
                (if upper (- (nth 1 beam) cover) (+ (car beam) cover)))
         entry (csar:beam-entry raw beam axis bend upper)
-        path (csar:beam-leg entry bend length diameter (if upper 1.0 -1.0) polygon))
+        path (csar:beam-leg entry bend embedment-mm diameter (if upper 1.0 -1.0) polygon))
   ;; A tall lower neck can obstruct the far-face continuation. Its vertical
   ;; leg then follows the near cover face, still measuring from the beam entry.
   (if (and (not upper)
@@ -618,7 +618,7 @@
     (progn
       (setq near (csar:atx (car axis) (cadr axis) (- (nth 1 beam) cover)))
       (setq entry (csar:beam-entry raw beam axis near upper)
-            path (csar:beam-leg entry near length diameter -1.0 polygon))))
+            path (csar:beam-leg entry near embedment-mm diameter -1.0 polygon))))
   path)
 
 (defun csar:main-end (raw cover diameter anchor-length upper top / beam joint tip polygon)
@@ -630,17 +630,17 @@
             tip (list (+ (caar joint) (* (if upper 1.0 -1.0) anchor-length)) (cadar joint)))
       (list (csar:hookpoint (car joint) tip diameter polygon) tip (car joint) (cadr joint)))))
 
-(defun csar:flight-fit-error (raw cover diameter length top / issue upper path axis polygon)
+(defun csar:flight-fit-error (raw cover diameter embedment-mm top / issue upper path axis polygon)
   (setq axis (csar:flight-axis raw cover top) polygon (csad:cleanpoints raw))
   (foreach upper (list nil T)
-    (setq path (csar:main-end raw cover diameter length upper top))
+    (setq path (csar:main-end raw cover diameter embedment-mm upper top))
     (if (and (not issue)
           (or (not path)
               (< (csar:path-clearance (append path (list (csad:mid (car axis) (cadr axis)))) polygon)
                  (- cover 0.01))))
       (setq issue (strcat (if upper "Upper" "Lower")
         (if (csar:support-beam raw upper) " beam" " plate joint")
-        " / flight " (if top "top" "bottom") ": anchor " (rtos length 2 1)
+        " / flight " (if top "top" "bottom") ": anchor " (rtos embedment-mm 2 1)
         " mm (BJ38 x d), plus 2d hook, does not fit cover. Check actual support size and BJ38; length was not shortened."))))
   issue)
 
@@ -1509,5 +1509,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.3 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.3.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

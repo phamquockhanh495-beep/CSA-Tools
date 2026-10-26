@@ -80,6 +80,10 @@ class PureLisp:
         return value
 
     def invoke(self, name, args, env):
+        # AutoLISP shares value/function symbols. A dynamically bound number
+        # must not silently fall back to a builtin, as a Lisp-2 evaluator would.
+        if name in env:
+            raise ValueError(f'bad function: {env[name]} (symbol {name})')
         if name in self.host:
             return self.host[name](*args)
         form = self.defs[name]

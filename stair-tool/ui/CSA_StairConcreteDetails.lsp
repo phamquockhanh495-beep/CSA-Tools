@@ -62,7 +62,7 @@
 
 (defun csad:detail-specs (raw gap / specs p1 p2 p3 p4 p5 p6 p7 p8 p9
                                 p11 p12 p14 p15 p18 p19 p21 p22 p23
-                                minx maxx miny maxy uppery p q mid length dx dy)
+                                minx maxx miny maxy uppery p q mid flight-span dx dy)
   (setq p1 (nth 0 raw) p2 (nth 1 raw) p3 (nth 2 raw) p4 (nth 3 raw)
         p5 (nth 4 raw) p6 (nth 5 raw) p7 (nth 6 raw) p8 (nth 7 raw) p9 (nth 8 raw)
         p11 (nth 10 raw) p12 (nth 11 raw) p14 (nth 13 raw) p15 (nth 14 raw)
@@ -90,8 +90,8 @@
   (setq specs (csad:addspec "upper_step_rise" "V" p4 p5 (list (- (car p4) gap) (cadr p5)) specs))
   ;; Perpendicular thickness: project the upper midspan onto the true soffit.
   (setq p (csad:mid p3 p4) q (csad:project p p14 p15)
-        mid (csad:mid p q) length (distance p3 p4)
-        dx (/ (- (car p4) (car p3)) length) dy (/ (- (cadr p4) (cadr p3)) length))
+        mid (csad:mid p q) flight-span (distance p3 p4)
+        dx (/ (- (car p4) (car p3)) flight-span) dy (/ (- (cadr p4) (cadr p3)) flight-span))
   (setq specs (csad:addspec "inclined_slab_normal" "A" q p
     (list (- (car mid) (* dx gap)) (- (cadr mid) (* dy gap))) specs))
   (reverse specs))

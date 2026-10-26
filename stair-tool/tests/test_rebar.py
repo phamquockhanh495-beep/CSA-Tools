@@ -41,6 +41,22 @@ class RebarTests(unittest.TestCase):
         self.assertIn('overall_width', literals)
         self.assertNotIn('overall_height', literals)
 
+    def test_autolisp_length_shadow_is_detected_and_anchor_helpers_are_safe(self):
+        pure = PureLisp(self.forms)
+        pure.defs['shadow-child'] = ['defun','shadow-child',[],['length',['quote',[1,2]]]]
+        pure.defs['shadow-parent'] = ['defun','shadow-parent',['length'],['shadow-child']]
+        with self.assertRaisesRegex(ValueError, 'bad function: 120.0'):
+            pure.call('shadow-parent',120.0)
+        for name in ('csar:beam-leg','csar:beam-flight-end','csar:flight-fit-error','csad:detail-specs'):
+            self.assertNotIn('length',pure.defs[name][2])
+        data=self.data.copy()
+        data[10]=10
+        # A 120 mm anchor may fail geometric fit, but must return a diagnostic
+        # rather than trying to call the number as LENGTH in a child helper.
+        issue=pure.call('csar:error',self.raw,self.concrete,data,self.options)
+        self.assertIsInstance(issue,str)
+        self.assertIn('does not fit',issue)
+
     def test_rebar_notation_parser(self):
         for value in ['12a150', ' D12 @ 150 ', '%%C12a150']:
             self.assertEqual(self.pure.call('csar:bar', value), [12, 150, '12a150'])
