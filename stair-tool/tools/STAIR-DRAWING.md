@@ -16,16 +16,16 @@ Tải `CSA_StairDrawing.lsp` tại thư mục này. File đã gộp toàn bộ h
 
 Sau khi thay đổi Excel phải bấm **Load / Reload Excel**; không có đồng bộ nền. Nút Close chỉ đóng giao diện, không tự xóa preview để người dùng kiểm tra ngoài viewport. Khi đổi DWG, dữ liệu Excel đã nạp vẫn có thể dùng, nhưng tài nguyên và đơn vị của DWG đích được kiểm tra lại trước mỗi lần vẽ.
 
-## Bản trung gian v5.5
+## Bản v5.5.1
 
 - Đầu Architectural tick là nét chéo rộng 1/8 chiều dài, Dot blank là vòng tròn rỗng. Kích thước theo ô Tick size / Dot blank size, đơn vị mm Model. Đây là entity riêng được đánh dấu/quản lý cùng bản vẽ; LEADER có Type **Line with no arrow** có chủ đích, tránh AutoCAD tự tắt đầu mũi khi cập nhật hoặc đoạn đầu ngắn. Properties của LEADER không điều khiển kích thước ký hiệu riêng; thay thông số trên UI rồi tạo Preview mới.
 - Chân dim gốc được suppress; hai đoạn chân mới dài tối đa **200 mm**, hoặc ngắn hơn nếu điểm đo gần đường dim. Điểm đo và giá trị DIMENSION giữ nguyên. Không còn phụ thuộc DIMFXL/DIMSCALE để cắt nét. Ký hiệu leader và chân dim riêng không tự đi theo khi kéo grip thủ công; cần vẽ lại để cập nhật.
 - Ghi chú dùng vùng bao block thực tế, chừa 20 mm với nét/đối tượng khác; thử dịch trong tối đa 80 vị trí theo lưới 200 mm. Nét polyline/line kiểm tra theo đoạn, các đối tượng còn lại theo bounding box; đã tính các đường thép sẽ vẽ, các ghi chú đã đặt và bỏ qua preview cũ sắp thay. Nếu không tìm được vị trí rõ thì báo lỗi, giữ preview cũ. Bố trí tránh vùng chữ/vòng số hiệu, chưa đảm bảo tránh mọi giao cắt giữa các nhánh leader.
 - Điểm chỉ nhóm thép chiếu tới chuyển vào phía trong. Có thể dịch các hàng ghi chú độc lập khi cần tránh va chạm.
 - Hai đường chuẩn ngang dùng **01-GB-Grid**; block Cao do vẫn dùng 11-GB-Cao Do. DWG cần có sẵn layer Grid.
-- Cấu tạo neo dầm mép ngoài hình 4 **chưa thay**: đang chờ chốt đoạn bẻ xuống của thanh trên tới tim dưới hay theo tổng neo BJ38 × d.
+- Dầm mép ngoài ở cả chiếu nghỉ/chiếu tới: thanh ngang lớp trên tới mép bê tông trừ BTBV rồi bẻ xuống **tim thép ngang lớp dưới**. Thanh dưới kết thúc thẳng tại mép bê tông trừ BTBV. Đoạn bẻ ngoài này theo chênh cao hai lớp, không lấy BJ38 và không thêm móc 2d. Neo tại nút nối bản xiên vẫn theo quy tắc riêng đã chốt.
 
-APPLOAD **v5.5**, Reload Excel, tạo Preview mới để xem các thay đổi này. Chưa kiểm tra trực tiếp trong AutoCAD.
+APPLOAD **v5.5.1**, Reload Excel, tạo Preview mới để xem các thay đổi này. Chưa kiểm tra trực tiếp trong AutoCAD.
 
 ## Cập nhật v5.4
 

@@ -559,6 +559,11 @@
       "top": 10,
       "bottom": 0
     },
-    "label_collision_placement": "Block bounding boxes, 20 mm clearance, up to 80 candidates, strokes and boxes; leader crossings not guaranteed"
+    "label_collision_placement": "Block bounding boxes, 20 mm clearance, up to 80 candidates, strokes and boxes; leader crossings not guaranteed",
+    "outer_beam_end": {
+      "top": "At concrete face minus cover, turn down to lower landing body axis; no 2d tail",
+      "bottom": "Straight termination at concrete face minus cover",
+      "length": "Layer elevation difference; independent of BJ38"
+    }
   }
 }

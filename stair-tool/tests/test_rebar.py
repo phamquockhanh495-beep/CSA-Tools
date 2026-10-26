@@ -254,6 +254,24 @@ class RebarTests(unittest.TestCase):
             expected = 'Lower + Upper' if lower and upper else 'Lower only' if lower else 'Upper only' if upper else 'None'
             self.assertTrue(text.endswith(expected))
 
+    def test_outer_beam_top_returns_to_lower_axis_and_bottom_stops_at_cover(self):
+        for raw in (self.raw,self.support_case(False,False)):
+            for cover in (15,20,25):
+                for side in (None,True):
+                    self.assertTrue(self.pure.call('csar:outer-support',raw,side))
+                    upper=self.pure.call('csar:landingpath',raw,cover,12,240,side,True)
+                    lower=self.pure.call('csar:landingpath',raw,cover,12,240,side,None)
+                    face=raw[5][0] if side else raw[0][0]
+                    self.assertAlmostEqual(abs(upper[0][0]-face),cover)
+                    self.assertEqual(upper[0][0],upper[1][0])
+                    self.assertEqual(upper[0][1],lower[0][1])
+                    self.assertGreater(upper[1][1],upper[0][1])
+                    self.assertAlmostEqual(abs(lower[0][0]-face),cover)
+                    self.assertEqual(lower[0][1],lower[1][1])
+                    for path in (upper,lower):
+                        self.assertGreaterEqual(self.pure.call('csar:path-clearance',path,
+                            self.pure.call('csad:cleanpoints',raw)),cover-.01)
+
     def test_free_outer_ends_return_top_and_set_back_bottom_twenty_mm(self):
         for inner in (False, True):
             for lower_free, upper_free in ((True, False), (False, True), (True, True)):

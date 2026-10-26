@@ -76,15 +76,15 @@
   (and (> width 0.5) (> depth 0.5)))
 
 (defun csar:landing-end (raw cover diameter upper top / body edge bottom)
-  ;; From outside toward the junction: top return ends on the lower axis.
-  ;; A free lower end is cover + 20 mm from the concrete face.
+  ;; Outer end: top returns to the lower-body axis, with or without an end beam.
+  ;; Bottom ends at cover with a beam; a free end retains cover + 20 mm.
   (setq body (csar:landingline raw cover diameter upper top)
         edge (if upper (cadr body) (car body)))
-  (if (csar:outer-support raw upper) (list edge)
-    (if top
-      (progn
-        (setq bottom (csar:landingline raw cover diameter upper nil))
-        (list (list (car edge) (cadar bottom)) edge))
+  (if top
+    (progn
+      (setq bottom (csar:landingline raw cover diameter upper nil))
+      (list (list (car edge) (cadar bottom)) edge))
+    (if (csar:outer-support raw upper) (list edge)
       (list (list (+ (car edge) (if upper -20.0 20.0)) (cadr edge))))))
 
 (defun csar:support-label (raw / lower upper)
