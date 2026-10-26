@@ -311,9 +311,9 @@
         minx (apply 'min (mapcar 'car raw)) maxx (apply 'max (mapcar 'car raw))
         miny (apply 'min (mapcar 'cadr raw)) maxy (apply 'max (mapcar 'cadr raw)))
   ;; Top horizontal chain: lower landing / flight projection / upper landing.
-  (setq specs (csad:addspec "lower_landing" "H" p1 p2 (list minx (+ maxy gap)) specs))
-  (setq specs (csad:addspec "flight_run" "H" p2 p4 (list minx (+ maxy gap)) specs))
-  (setq specs (csad:addspec "upper_landing" "H" p4 p6 (list minx (+ maxy gap)) specs))
+  (setq specs (csad:addspec "lower_landing" "H" p1 p2 (list minx (+ maxy 775.0)) specs))
+  (setq specs (csad:addspec "flight_run" "H" p2 p4 (list minx (+ maxy 775.0)) specs))
+  (setq specs (csad:addspec "upper_landing" "H" p4 p6 (list minx (+ maxy 775.0)) specs))
   ;; Floor rise is separate from the total outline height including downstands.
   (setq specs (csad:addspec "floor_rise" "V" p1 p5 (list (- minx (* 3.0 gap)) maxy) specs))
   ;; Lower slab and downstand below slab; total beam depth is suppressed.
@@ -359,7 +359,7 @@
   T)
 
 (defun csad:fixed-extensions (objects model-length / groups group object scale selection)
-  (setq csad-stage "Dimensions: native DIMOVERRIDE, fixed extension length 150 model mm")
+  (setq csad-stage "Dimensions: native DIMOVERRIDE, fixed extension length 200 model mm")
   (foreach object objects
     (setq scale (csad:dimension-scale object) group (assoc scale groups))
     (if group
@@ -382,6 +382,7 @@
     (setq obj (csast:track (vla-AddDimRotated space (vlax-3d-point a)
       (vlax-3d-point b) (vlax-3d-point location) (if (= kind "H") 0.0 (/ pi 2.0))))))
   (vla-put-Layer obj layer) (vla-put-StyleName obj style)
+  (if (nth 5 spec) (vla-put-TextOverride obj (nth 5 spec)))
   (setq csad-dimensions (cons obj csad-dimensions))
   (vla-Update obj)
   obj)
@@ -444,12 +445,36 @@
       (list (- (car a) (* 1.5 gap)) (+ (cadr a) gap)))))))
   result)
 
-(defun csad:draw-steps (space base raw options gap height preview / item object)
-  (foreach item (csad:step-labels raw options gap)
-    (setq object (csast:text space (car item)
-      (csast:p base (car (cadr item)) (cadr (cadr item))) (* 1.5 height)
-      (if preview "CSA-PREVIEW" "10-GB-Text") "01-GB-Arial"))
-    (csad:center object (csast:p base (car (cadr item)) (cadr (cadr item))))))
+(defun csad:step-dim-text (raw options / count run)
+  (setq count (fix (nth 1 options)) run (- (car (nth 3 raw)) (car (nth 1 raw))))
+  ;; <> preserves the dimension's real measured total, not a hard-coded value.
+  (strcat (itoa count) " x " (rtos (/ run count) 2 2) " = <>"))
+
+(defun csad:step-spec (raw options gap / spec result)
+  (foreach spec (csad:detail-specs raw gap)
+    (if (= (car spec) "flight_run")
+      (setq result (append spec (list (csad:step-dim-text raw options))))))
+  result)
+
+(defun csad:draw-steps (space base raw options gap height preview)
+  (csad:draw-spec space base (csad:step-spec raw options gap)
+    (if preview "CSA-PREVIEW" "04-GB-Dim") (csad:get 'dimstyle)))
+
+(defun csad:level-guides (raw / left right)
+  (setq left (- (caar raw) 500.0) right (+ (car (nth 5 raw)) 500.0))
+  (list (list (list left (cadar raw)) (list right (cadar raw)))
+        (list (list left (cadr (nth 4 raw))) (list right (cadr (nth 4 raw))))))
+
+(defun csad:draw-levels (space base raw bottom top preview / guides guide value)
+  (setq guides (csad:level-guides raw))
+  (foreach value (list bottom top)
+    (setq guide (car guides) guides (cdr guides))
+    (csast:line space (csast:p base (caar guide) (cadar guide))
+      (csast:p base (caadr guide) (cadadr guide))
+      (if preview "CSA-PREVIEW" "11-GB-Cao Do"))
+    (csast:insert space "Cao do" (csast:p base (caadr guide) (cadadr guide))
+      (if preview "CSA-PREVIEW" "11-GB-Cao Do") 0.25
+      (list (cons "%%P0.000" (csad:leveltext value))))))
 
 ;;; Rebar detailing draft from Excel BJ28:BJ41 and Z23:Z26.
 ;;; Plate joint anchors use BJ38 times each bar diameter; 30-degree/2d return hooks.
@@ -561,9 +586,9 @@
 
 (defun csar:joint-turn (raw cover upper flighttop / axis landing y)
   (setq axis (csar:flight-axis raw cover flighttop)
-        landing (csar:landingline raw cover 0 upper T)
-        y (- (cadar landing) (if flighttop 0.0 10.0)))
-  ;; Both flight tails reference the TOP landing axis: top at 0, bottom at -10.
+        landing (csar:landingline raw cover 0 upper nil)
+        y (+ (cadar landing) (if flighttop 10.0 0.0)))
+  ;; Both flight tails reference the LOWER landing axis: top at +10, bottom at 0.
   (csar:joint-turn-at raw cover upper flighttop axis y))
 
 (defun csar:hookpoint (previous tip diameter polygon / span dx dy leg c first second)
@@ -662,8 +687,8 @@
       (if leg (csad:cleanpoints (append ending (reverse leg)))))
     (progn
       ;; Top landing tails follow a line 10 mm normal inside the lower flight axis.
-      (setq axis (csar:flight-axis raw (+ cover (if top 10.0 0.0)) (not top))
-            joint (csar:joint-turn-at raw cover upper (not top) axis (cadr edge))
+      (setq axis (csar:flight-axis raw (+ cover (if top 10.0 0.0)) nil)
+            joint (csar:joint-turn-at raw cover upper nil axis (cadr edge))
             knee (cadr joint)
             tip (csar:advance knee (csad:mid (car axis) (cadr axis)) anchor-length))
       (csad:cleanpoints (append ending (list (car joint) knee tip (csar:hookpoint knee tip diameter polygon)))))))
@@ -935,13 +960,13 @@
   (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
   (vlax-safearray-fill array coords)
   ;; Annotation must be an existing CSA BlockReference, not a missing nil argument.
-  ;; AcLeaderType: 0 = acLineWithArrow, 1 = acSplineWithArrow (curved).
+  ;; AcLeaderType: 0=line/no arrow, 1=spline/no arrow, 2=line/arrow, 3=spline/arrow.
   (setq csad-stage "Leader: AddLeader straight segments with CSA annotation")
-  (setq object (csast:track (vla-AddLeader space array annotation 0)))
+  (setq object (csast:track (vla-AddLeader space array annotation 2)))
   (setq csad-stage "Leader: set layer and DimStyle")
   (vla-put-Layer object layer) (vla-put-StyleName object style)
   (setq csad-stage "Leader: set straight Type / ScaleFactor")
-  (vla-put-Type object 0)
+  (vla-put-Type object 2)
   (vla-put-ScaleFactor object 1.0)
   ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
   (setq csad-stage "Leader: set ArrowheadType and model-space size")
@@ -1119,9 +1144,9 @@
           (setq path (csar:landingpath raw cover (car bar) (csar:anchor-length data (car bar)) side top)
                 region (if side "UPPER" "LOWER")
                 pair (csar:callout-targets raw data region top)
-                midpoint (car pair) point (csar:note-position pair top nil nil))
+                midpoint (car pair) point (csar:note-position pair top nil (not top)))
           (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
-          (csar:note space base midpoint point bar mark nil preview height nil)
+          (csar:note space base midpoint point bar mark nil preview height (not top))
           (setq mark (1+ mark))))))
   ;; One mark per distribution region/layer; displayed dots are 1.5 times BJ36.
   (setq bar (csar:bar (nth 8 data)))
@@ -1131,12 +1156,12 @@
           pair (csar:callout-targets raw data (car spec) top)
           midpoint (cadr pair))
     (foreach dot dots (csar:dot space base dot (car bar) (if preview "CSA-PREVIEW" "18-GB-Reinf")))
-    (setq point (csar:note-position pair top T (and (= (car spec) "FLIGHT") (not top))))
-    (csar:note space base midpoint point bar mark T preview height (and (= (car spec) "FLIGHT") (not top)))
+    (setq point (csar:note-position pair top T (not top)))
+    (csar:note space base midpoint point bar mark T preview height (not top))
     (setq mark (1+ mark)))
   (setq mark (csar:render-necks space base raw cover mark preview height))
   (setq text (strcat "REBAR DRAFT / COVER=" (rtos cover 2 0)
-    " / ANCHORS=" (rtos (nth 10 data) 2 1) "d / FLIGHT TAILS: TOP=0, BOTTOM=-10 FROM TOP LANDING / HOOK=30 deg, 2d"))
+    " / ANCHORS=" (rtos (nth 10 data) 2 1) "d / FLIGHT TAILS: TOP=+10, BOTTOM=0 FROM LOWER LANDING / HOOK=30 deg, 2d"))
   (csast:text space text (csast:p base minx (- miny (* 5.0 gap))) height
     (if preview "CSA-PREVIEW" "20-GB-GC") "01-GB-Arial")
   (csast:text space "JOINT DETAIL DRAFT / BEND RADII AND FABRICATION SCHEDULE NOT GENERATED"
@@ -1152,6 +1177,10 @@
   (if entry (setq *csad-state* (subst (cons key value) entry *csad-state*))
     (setq *csad-state* (cons (cons key value) *csad-state*)))
   value)
+
+(defun csad:excel-folder (/ folder)
+  (setq folder (getenv "CSA_STAIR_EXCEL_FOLDER"))
+  (if (and folder (/= folder "")) (strcat folder "/") ""))
 
 (defun csad:cell (cells row col / cell value kind)
   (setq cell (csad:unwrap (vlax-get-property cells 'Item row col))
@@ -1239,6 +1268,7 @@
   (csad:put 'concrete-parameters metadata)
   (csad:put 'points points)
   (csad:put 'path path)
+  (setenv "CSA_STAIR_EXCEL_FOLDER" (vl-filename-directory path))
   (csad:put 'bottom (csad:fixed3 bottom))
   (csad:put 'top (csad:fixed3 (+ bottom (/ rise 1000.0))))
   (if (and (= (type title) 'STR) (/= title "")) (csad:put 'title title))
@@ -1289,7 +1319,7 @@
           ": toggle { key = \"details\"; label = \"Concrete details\"; }"
           ": toggle { key = \"levels\"; label = \"Elevations\"; }"
           ": toggle { key = \"symbol\"; label = \"Section symbol\"; } }"
-          ": toggle { key = \"steps\"; label = \"Step counts from Excel (U28 / AI23)\"; }"
+          ": toggle { key = \"steps\"; label = \"Step count x tread in flight dimension\"; }"
           ": toggle { key = \"rebar\"; label = \"Rebar draft - bent landing anchors and transverse dots\"; }"
           ": text { label = \"Neck >100, no beam: d8a200 + 4d8 / R4 | Dots x1.5\"; }"
           ": text { key = \"supportinfo\"; width = 80; }"
@@ -1462,18 +1492,15 @@
             (if preview layer "04-GB-Dim") (csad:get 'dimstyle)))
         (if (= "1" (csad:get 'details))
           (foreach spec (csad:detail-specs (csad:get 'rawpoints) gap)
+            (if (and (= (car spec) "flight_run") (= "1" (csad:get 'steps)))
+              (setq spec (append spec (list (csad:step-dim-text (csad:get 'rawpoints) (csad:get 'section-options))))))
             (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
-        (if csad-dimensions (csad:fixed-extensions csad-dimensions 150.0))
-        (setq csad-stage "Elevations: Cao do blocks")
-        (if (= "1" (csad:get 'levels))
-          (progn
-            (csast:insert space "Cao do" (csast:p base (caar points) (cadar points))
-              (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext bottom))))
-            (csast:insert space "Cao do" (csast:p base (car toppt) (cadr toppt))
-              (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext top))))))
-        (setq csad-stage "Steps: labels and bounding boxes")
-        (if (= "1" (csad:get 'steps))
+        (if (and (= "1" (csad:get 'steps)) (/= "1" (csad:get 'details)))
           (csad:draw-steps space base (csad:get 'rawpoints) (csad:get 'section-options) gap height preview))
+        (if csad-dimensions (csad:fixed-extensions csad-dimensions 200.0))
+        (setq csad-stage "Elevations: horizontal guides and Cao do blocks")
+        (if (= "1" (csad:get 'levels))
+          (csad:draw-levels space base (csad:get 'rawpoints) bottom top preview))
         (setq csad-stage "Rebar: start drawing")
         (if (= "1" (csad:get 'rebar))
           (csar:render space base (csad:get 'rawpoints) (csad:get 'rebar-data)
@@ -1501,7 +1528,7 @@
     (setq action (csad:dialog))
     (cond
       ((and action (= action 11))
-        (if (setq path (getfiled "Select the workbook already open in Excel" "" "xlsm" 0))
+        (if (setq path (getfiled "Select the workbook already open in Excel" (csad:excel-folder) "xlsm" 0))
           (csad:loadexcel path)))
       ((and action (= action 12)) (csad:render T) (setq action 0))
       ((and action (= action 13)) (csad:render nil) (setq action 0))
@@ -1509,5 +1536,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.3.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.4 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

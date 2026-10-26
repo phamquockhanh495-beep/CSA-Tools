@@ -8,6 +8,10 @@
     (setq *csad-state* (cons (cons key value) *csad-state*)))
   value)
 
+(defun csad:excel-folder (/ folder)
+  (setq folder (getenv "CSA_STAIR_EXCEL_FOLDER"))
+  (if (and folder (/= folder "")) (strcat folder "/") ""))
+
 (defun csad:cell (cells row col / cell value kind)
   (setq cell (csad:unwrap (vlax-get-property cells 'Item row col))
         value (vlax-get-property cell 'Value2))
@@ -94,6 +98,7 @@
   (csad:put 'concrete-parameters metadata)
   (csad:put 'points points)
   (csad:put 'path path)
+  (setenv "CSA_STAIR_EXCEL_FOLDER" (vl-filename-directory path))
   (csad:put 'bottom (csad:fixed3 bottom))
   (csad:put 'top (csad:fixed3 (+ bottom (/ rise 1000.0))))
   (if (and (= (type title) 'STR) (/= title "")) (csad:put 'title title))
@@ -144,7 +149,7 @@
           ": toggle { key = \"details\"; label = \"Concrete details\"; }"
           ": toggle { key = \"levels\"; label = \"Elevations\"; }"
           ": toggle { key = \"symbol\"; label = \"Section symbol\"; } }"
-          ": toggle { key = \"steps\"; label = \"Step counts from Excel (U28 / AI23)\"; }"
+          ": toggle { key = \"steps\"; label = \"Step count x tread in flight dimension\"; }"
           ": toggle { key = \"rebar\"; label = \"Rebar draft - bent landing anchors and transverse dots\"; }"
           ": text { label = \"Neck >100, no beam: d8a200 + 4d8 / R4 | Dots x1.5\"; }"
           ": text { key = \"supportinfo\"; width = 80; }"
@@ -317,18 +322,15 @@
             (if preview layer "04-GB-Dim") (csad:get 'dimstyle)))
         (if (= "1" (csad:get 'details))
           (foreach spec (csad:detail-specs (csad:get 'rawpoints) gap)
+            (if (and (= (car spec) "flight_run") (= "1" (csad:get 'steps)))
+              (setq spec (append spec (list (csad:step-dim-text (csad:get 'rawpoints) (csad:get 'section-options))))))
             (csad:draw-spec space base spec (if preview layer "04-GB-Dim") (csad:get 'dimstyle))))
-        (if csad-dimensions (csad:fixed-extensions csad-dimensions 150.0))
-        (setq csad-stage "Elevations: Cao do blocks")
-        (if (= "1" (csad:get 'levels))
-          (progn
-            (csast:insert space "Cao do" (csast:p base (caar points) (cadar points))
-              (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext bottom))))
-            (csast:insert space "Cao do" (csast:p base (car toppt) (cadr toppt))
-              (if preview layer "11-GB-Cao Do") 0.25 (list (cons "%%P0.000" (csad:leveltext top))))))
-        (setq csad-stage "Steps: labels and bounding boxes")
-        (if (= "1" (csad:get 'steps))
+        (if (and (= "1" (csad:get 'steps)) (/= "1" (csad:get 'details)))
           (csad:draw-steps space base (csad:get 'rawpoints) (csad:get 'section-options) gap height preview))
+        (if csad-dimensions (csad:fixed-extensions csad-dimensions 200.0))
+        (setq csad-stage "Elevations: horizontal guides and Cao do blocks")
+        (if (= "1" (csad:get 'levels))
+          (csad:draw-levels space base (csad:get 'rawpoints) bottom top preview))
         (setq csad-stage "Rebar: start drawing")
         (if (= "1" (csad:get 'rebar))
           (csar:render space base (csad:get 'rawpoints) (csad:get 'rebar-data)
@@ -356,7 +358,7 @@
     (setq action (csad:dialog))
     (cond
       ((and action (= action 11))
-        (if (setq path (getfiled "Select the workbook already open in Excel" "" "xlsm" 0))
+        (if (setq path (getfiled "Select the workbook already open in Excel" (csad:excel-folder) "xlsm" 0))
           (csad:loadexcel path)))
       ((and action (= action 12)) (csad:render T) (setq action 0))
       ((and action (= action 13)) (csad:render nil) (setq action 0))
@@ -364,5 +366,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.3.1 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.4 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

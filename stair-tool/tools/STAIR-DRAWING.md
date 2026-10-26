@@ -16,6 +16,18 @@ Tải `CSA_StairDrawing.lsp` tại thư mục này. File đã gộp toàn bộ h
 
 Sau khi thay đổi Excel phải bấm **Load / Reload Excel**; không có đồng bộ nền. Nút Close chỉ đóng giao diện, không tự xóa preview để người dùng kiểm tra ngoài viewport. Khi đổi DWG, dữ liệu Excel đã nạp vẫn có thể dùng, nhưng tài nguyên và đơn vị của DWG đích được kiểm tra lại trước mỗi lần vẽ.
 
+## Cập nhật v5.4
+
+- Chân dim cố định **200 mm**, hàng dim ngang trên cách mặt bản trên **775 mm**. Ô Dimension spacing tiếp tục điều khiển các khoảng dim khác.
+- Bỏ nhãn BAC độc lập; dim ngang vế xiên ghi **số bậc × bề rộng bậc = tổng đo thật**. Ví dụ hình chiếu 2500 mm, 13 bậc: `13 x 192.31 = 2500`. Bề rộng biểu diễn làm tròn 2 số lẻ; `<>` trong TextOverride giữ giá trị đo thật. Khi tắt Concrete details nhưng bật Step count, vẫn tạo riêng dim này.
+- Ghi chú lớp trên của chiếu nghỉ/chiếu tới ở bên trái, lớp dưới ở bên phải, vòng SH ngoài cùng và chữ đọc thuận.
+- Sửa AcLeaderType thành **2 = Line with arrow**. Giá trị 0 của bản cũ là Line with no arrow: Arrow size lớn vẫn không hiện tick/dotblank. Các mũi dùng ArchTick/DotBlank, kích thước Model theo UI.
+- Hai đường chuẩn cao độ ngang trải từ mép trái−500 đến mép phải+500 mm; hai block Cao do cùng cột bên phải, tại đúng cao độ mặt bản dưới/trên. Dùng layer cao độ có sẵn; chưa bổ sung bong bóng tên trục vì hình không yêu cầu tên trục.
+- Tại nút nối bản không dầm, neo ngang thép xiên lớp trên cách tim thép ngang **lớp dưới +10 mm**, lớp dưới trùng tim đó. Neo của thép ngang vào vế xiên cùng tham chiếu **lớp dưới vế xiên**: lớp trên cách vào trong 10 mm theo phương vuông góc, lớp dưới trùng tim.
+- Folder Excel được lưu sau lần Load thành công bằng thiết lập `CSA_STAIR_EXCEL_FOLDER` và dùng lại khi mở hộp chọn file, kể cả phiên AutoCAD sau. Cancel/Load lỗi không ghi đè folder đã lưu.
+
+APPLOAD bản **v5.4**, Reload Excel, tạo Preview mới. Kiểm tra Properties leader phải là **Line with arrow**, dim trên 775 mm và chân dim 200 mm. Các đối tượng đã vẽ bằng bản cũ không tự cập nhật.
+
 ## Sửa lỗi v5.3.1: bad function 120.0
 
 Bản v5.3 dùng tham số `length` trùng hàm AutoLISP `LENGTH` trong ba helper neo. Với BJ38=10, d12, giá trị neo là 120.0. Khi hàm con gọi LENGTH, AutoCAD cố gọi số 120.0 như hàm và dừng ở Section preflight. Đây là lỗi mã, không phải lỗi ô số bậc 0.
@@ -118,13 +130,13 @@ Nút **Plan (next phase)** được vô hiệu hóa: bảng tọa độ đang c�
 
 ## Cấu tạo thép v5.3
 
-Sau APPLOAD, command line phải báo **rebar-detail v5.3**. Load / Reload Excel, bật Rebar draft, chọn **Rebar symbol = %%C (Diameter) hoặc T**, rồi Preview tại vùng trống.
+Sau APPLOAD, command line phải báo **rebar-detail v5.4**. Load / Reload Excel, bật Rebar draft, chọn **Rebar symbol = %%C (Diameter) hoặc T**, rồi Preview tại vùng trống.
 
 ### Neo nối bản và neo vào dầm
 
 - `BJ38` là hệ số neo theo đường kính, phải là số dương. Ví dụ BJ38=30: thanh d12 neo 360 mm, d14 neo 420 mm. Chiều dài được dùng thống nhất khi kiểm tra, dựng thanh và đặt leader.
-- **Nút không có dầm:** đoạn neo ngang của thép xiên lớp trên trùng tim thép ngang lớp trên; neo ngang của thép xiên lớp dưới thấp hơn **tim thép ngang lớp trên 10 mm**. Đoạn ngang dài BJ38 × d, chưa cộng móc và đoạn chuyển tiếp qua cổ.
-- Thép bản ngang vẫn là thanh riêng: lớp trên kéo vào vùng lớp dưới vế xiên, cách tim lớp dưới 10 mm theo phương vuông góc; lớp dưới nối sang vùng lớp trên vế xiên. Các đoạn xiên cũng dài BJ38 × d. Quy tắc này giữ từ bản đã chốt; xác nhận mới thay vị trí **neo ngang của thép vế xiên**.
+- **Nút không có dầm:** đoạn neo ngang của thép xiên lớp trên cao hơn tim thép ngang lớp dưới 10 mm; neo ngang của thép xiên lớp dưới trùng **tim thép ngang lớp dưới**. Đoạn ngang dài BJ38 × d, chưa cộng móc và đoạn chuyển tiếp qua cổ.
+- Thép bản ngang vẫn là thanh riêng: lớp trên kéo vào vùng lớp dưới vế xiên, cách tim lớp dưới 10 mm theo phương vuông góc; lớp dưới trùng tim lớp dưới vế xiên. Các đoạn xiên cũng dài BJ38 × d. Quy tắc này giữ từ bản đã chốt; xác nhận mới thay vị trí **neo ngang của thép vế xiên**.
 - **Dầm trên:** cả hai lớp thép vế xiên tiến tới đường cách mép dầm BTBV rồi bẻ lên. **Dầm dưới:** bẻ xuống. Tổng chiều dài nằm trong dầm bằng BJ38 × d; chiều dài đoạn đứng là phần còn lại sau đoạn đi vào dầm.
 - Nếu cổ cao làm đường kéo tới phía xa đi ra ngoài bê tông, đoạn đứng ở dầm dưới đi theo đường BTBV phía gần vế xiên. Chiều dài xuyên cổ **ngoài dầm** không được tính vào neo: bắt đầu đếm ở mặt trên dầm. Dầm được giới hạn bởi bề rộng thực tế, đáy dầm và mặt trên bản ngang trong hợp đồng tọa độ hiện tại.
 - Thép lớp dưới bản ngang tại đầu có dầm đi vào tới đường BTBV phía đối diện rồi bẻ xuống. Phần ngang trong dầm cộng phần đứng bằng BJ38 × d.
@@ -150,14 +162,14 @@ Thép dọc đặt theo BTBV đã chốt trong hình biểu diễn tim; các đ�
 
 ### Leader và ký hiệu thép
 
-Leader là **LEADER loại đoạn thẳng** (AcLeaderType 0), gồm nhánh **đứng qua đúng điểm chỉ thanh/chấm**, rồi nhánh **ngang dưới text DK-KC**. Hai nhánh vuông góc; các nhánh đứng trong một cặp song song và tách nhau nhờ chọn hai vị trí chỉ khác nhau.
+Leader là **LEADER loại đoạn thẳng** (AcLeaderType 2), gồm nhánh **đứng qua đúng điểm chỉ thanh/chấm**, rồi nhánh **ngang dưới text DK-KC**. Hai nhánh vuông góc; các nhánh đứng trong một cặp song song và tách nhau nhờ chọn hai vị trí chỉ khác nhau.
 
 Ghi chú thép dọc và thép chấm của cùng vùng/lớp được đặt cùng cột theo mép text phía nhánh đứng, thành hai hàng: lớp trên đặt phía trên điểm chỉ, lớp dưới đặt phía dưới. Khoảng cách đường ngang cố định 200 mm như phần trên; AutoCAD lấy bounding box sau khi đặt font để căn đúng các đường ngang. Đây là bố trí cho mẫu hiện có, chưa phải thuật toán tránh mọi va chạm với các đối tượng khác trong DWG.
 
 - Thanh trong mặt cắt dùng **Architectural tick**; chấm thép dùng **Dot blank**.
 - Kích thước đầu leader mặc định **100 mm / 60 mm** trong Model, chỉnh được trên UI.
 - **Rebar symbol** chọn `%%C` hoặc `T`; ví dụ cùng dữ liệu `12a150` sẽ ghi `%%C12a150` (ký hiệu đường kính trong CAD) hoặc `T12a150`. Áp dụng cho cả ghi chú thanh và ghi chú thép chấm. DK-KC của ghi chú mới dùng Arial; định nghĩa block CSA được giữ nguyên.
-- Block ghi chú CSA hiện có vẫn làm Annotation của AddLeader, tránh lỗi tham số nil ở v4. Leader được đặt lại Type và tọa độ sau khi gán style/annotation.
+- Block ghi chú CSA hiện có vẫn làm Annotation của AddLeader, tránh lỗi tham số nil ở v4. Leader được đặt lại Type 2 và tọa độ sau khi gán style/annotation.
 
 ### Nguồn thông số
 
@@ -180,19 +192,19 @@ Chấm hiển thị có đường kính 1,5 × BJ36; tim chấm cách biên `BJ2
 
 ### Các bản sửa trước được giữ
 
-- Chân dim cố định **150 mm trong Model**, dùng DIMOVERRIDE gộp theo scale cho dim mới; không tự ghi DSTYLE xdata, không chọn dim cũ hoặc sửa định nghĩa DimStyle. Có bù DIMSCALE như bản v4.3 người dùng đã chạy được.
+- Chân dim cố định **200 mm trong Model**, dùng DIMOVERRIDE gộp theo scale cho dim mới; không tự ghi DSTYLE xdata, không chọn dim cũ hoặc sửa định nghĩa DimStyle. Có bù DIMSCALE như bản v4.3 người dùng đã chạy được.
 - Scale Cao do 0.25, Daucat 0.01, So hieu thep 0.35; các dim đánh X vẫn được bỏ.
 - Preview được đánh dấu và chỉ thay sau khi dựng thành công; các bản chính thức cũ không tự cập nhật.
 - V5 **tách nhãn số bậc khỏi chiều cao giật cấp**. U28/AI23 phải là số nguyên hợp lệ, AV21 phải dương; không còn buộc giật đầu dưới bằng U28 × AV21. Vì vậy nút 0 mm không bị chặn chỉ vì ô nhãn còn 2 bậc. Đường bao, chiều dày và cao độ vẫn được kiểm tra riêng theo dữ liệu Excel. V5 chỉ ghi số bậc, chưa dựng răng cưa từng bậc.
 
 ### Kiểm tra trong AutoCAD
 
-1. APPLOAD, xác nhận **v5.3**, rồi Load / Reload Excel.
+1. APPLOAD, xác nhận **v5.4**, rồi Load / Reload Excel.
 2. Chọn Rebar symbol, bật Rebar draft và Preview tại vùng trống.
 3. Kiểm tra Beam supports. Đo tổng tim thanh trong dầm tới đầu neo bằng BJ38 × d, bỏ phần xuyên cổ ngoài dầm và móc 2d. Dầm trên: thép vế xiên bẻ lên; dầm dưới: bẻ xuống. Kiểm tra từng đầu có/không dầm.
-4. Tại nút nối bản không dầm, neo ngang lớp trên trùng tim thép ngang lớp trên; neo ngang lớp dưới thấp hơn tim đó 10 mm. Kiểm tra cổ >100 mm có đai R4, ghi Ø8a200 và 4Ø8; cổ ≤100 mm hoặc có dầm không có bộ thép này.
+4. Tại nút nối bản không dầm, neo ngang lớp trên cao hơn tim thép ngang lớp dưới 10 mm; neo ngang lớp dưới trùng tim đó. Kiểm tra cổ >100 mm có đai R4, ghi Ø8a200 và 4Ø8; cổ ≤100 mm hoặc có dầm không có bộ thép này.
 5. Cụm ký hiệu lớp dưới FLIGHT phải ở bên phải nhánh đứng, vòng SH ngoài cùng bên phải, chữ không ngược. Kiểm tra các khoảng cách leader vẫn là 200–200–50 mm và lựa chọn T/%%C.
-6. D10 phải hiển thị chấm 15 mm và tâm cách đường thép dọc 7,5 mm, ghi chú vẫn d10. Kiểm tra các lựa chọn Yes/No, lớp thép, số hiệu; chân dim bê tông vẫn 150 mm.
+6. D10 phải hiển thị chấm 15 mm và tâm cách đường thép dọc 7,5 mm, ghi chú vẫn d10. Kiểm tra các lựa chọn Yes/No, lớp thép, số hiệu; chân dim bê tông 200 mm.
 7. Draw Section tại điểm mới khi đã kiểm tra. Môi trường Linux chưa chạy AutoCAD; kiểm tra offline không xác nhận hiển thị COM/DCL thực tế.
 
 ## Kiểm tra mã nguồn
@@ -201,4 +213,4 @@ Chấm hiển thị có đường kính 1,5 × BJ36; tim chấm cách biên `BJ2
 
 Nguồn UI ở `../ui/CSA_StairDrawing.core.lsp`, planner dimension ở `../ui/CSA_StairConcreteDetails.lsp`, tim thép ở `../ui/CSA_StairRebar.lsp`; bản một file được tạo bằng `python3 stair-tool/tools/build_stair_bundle.py`. Không sửa trực tiếp file gộp. Chạy `python3 -m unittest discover -s stair-tool/tests -v` để kiểm tra.
 
-Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v5.3**.
+Khi nạp đè bản cũ, cần bấm **Load / Reload Excel một lần** để có thêm thông số cấu tạo. Các bản vẽ chính thức cũ không tự cập nhật; chọn một điểm mới để so sánh. Tên phiên bản xuất ở command line là **rebar-detail v5.4**.

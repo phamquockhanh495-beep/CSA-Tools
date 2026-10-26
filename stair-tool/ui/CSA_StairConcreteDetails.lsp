@@ -70,9 +70,9 @@
         minx (apply 'min (mapcar 'car raw)) maxx (apply 'max (mapcar 'car raw))
         miny (apply 'min (mapcar 'cadr raw)) maxy (apply 'max (mapcar 'cadr raw)))
   ;; Top horizontal chain: lower landing / flight projection / upper landing.
-  (setq specs (csad:addspec "lower_landing" "H" p1 p2 (list minx (+ maxy gap)) specs))
-  (setq specs (csad:addspec "flight_run" "H" p2 p4 (list minx (+ maxy gap)) specs))
-  (setq specs (csad:addspec "upper_landing" "H" p4 p6 (list minx (+ maxy gap)) specs))
+  (setq specs (csad:addspec "lower_landing" "H" p1 p2 (list minx (+ maxy 775.0)) specs))
+  (setq specs (csad:addspec "flight_run" "H" p2 p4 (list minx (+ maxy 775.0)) specs))
+  (setq specs (csad:addspec "upper_landing" "H" p4 p6 (list minx (+ maxy 775.0)) specs))
   ;; Floor rise is separate from the total outline height including downstands.
   (setq specs (csad:addspec "floor_rise" "V" p1 p5 (list (- minx (* 3.0 gap)) maxy) specs))
   ;; Lower slab and downstand below slab; total beam depth is suppressed.
@@ -118,7 +118,7 @@
   T)
 
 (defun csad:fixed-extensions (objects model-length / groups group object scale selection)
-  (setq csad-stage "Dimensions: native DIMOVERRIDE, fixed extension length 150 model mm")
+  (setq csad-stage "Dimensions: native DIMOVERRIDE, fixed extension length 200 model mm")
   (foreach object objects
     (setq scale (csad:dimension-scale object) group (assoc scale groups))
     (if group
@@ -141,6 +141,7 @@
     (setq obj (csast:track (vla-AddDimRotated space (vlax-3d-point a)
       (vlax-3d-point b) (vlax-3d-point location) (if (= kind "H") 0.0 (/ pi 2.0))))))
   (vla-put-Layer obj layer) (vla-put-StyleName obj style)
+  (if (nth 5 spec) (vla-put-TextOverride obj (nth 5 spec)))
   (setq csad-dimensions (cons obj csad-dimensions))
   (vla-Update obj)
   obj)
@@ -203,9 +204,33 @@
       (list (- (car a) (* 1.5 gap)) (+ (cadr a) gap)))))))
   result)
 
-(defun csad:draw-steps (space base raw options gap height preview / item object)
-  (foreach item (csad:step-labels raw options gap)
-    (setq object (csast:text space (car item)
-      (csast:p base (car (cadr item)) (cadr (cadr item))) (* 1.5 height)
-      (if preview "CSA-PREVIEW" "10-GB-Text") "01-GB-Arial"))
-    (csad:center object (csast:p base (car (cadr item)) (cadr (cadr item))))))
+(defun csad:step-dim-text (raw options / count run)
+  (setq count (fix (nth 1 options)) run (- (car (nth 3 raw)) (car (nth 1 raw))))
+  ;; <> preserves the dimension's real measured total, not a hard-coded value.
+  (strcat (itoa count) " x " (rtos (/ run count) 2 2) " = <>"))
+
+(defun csad:step-spec (raw options gap / spec result)
+  (foreach spec (csad:detail-specs raw gap)
+    (if (= (car spec) "flight_run")
+      (setq result (append spec (list (csad:step-dim-text raw options))))))
+  result)
+
+(defun csad:draw-steps (space base raw options gap height preview)
+  (csad:draw-spec space base (csad:step-spec raw options gap)
+    (if preview "CSA-PREVIEW" "04-GB-Dim") (csad:get 'dimstyle)))
+
+(defun csad:level-guides (raw / left right)
+  (setq left (- (caar raw) 500.0) right (+ (car (nth 5 raw)) 500.0))
+  (list (list (list left (cadar raw)) (list right (cadar raw)))
+        (list (list left (cadr (nth 4 raw))) (list right (cadr (nth 4 raw))))))
+
+(defun csad:draw-levels (space base raw bottom top preview / guides guide value)
+  (setq guides (csad:level-guides raw))
+  (foreach value (list bottom top)
+    (setq guide (car guides) guides (cdr guides))
+    (csast:line space (csast:p base (caar guide) (cadar guide))
+      (csast:p base (caadr guide) (cadadr guide))
+      (if preview "CSA-PREVIEW" "11-GB-Cao Do"))
+    (csast:insert space "Cao do" (csast:p base (caadr guide) (cadadr guide))
+      (if preview "CSA-PREVIEW" "11-GB-Cao Do") 0.25
+      (list (cons "%%P0.000" (csad:leveltext value))))))

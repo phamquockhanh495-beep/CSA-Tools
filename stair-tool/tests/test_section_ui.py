@@ -14,6 +14,13 @@ class SectionUITests(unittest.TestCase):
         cls.forms = lisp_forms((TOOL / 'tools/CSA_StairDrawing.lsp').read_text())
         cls.pure = PureLisp(cls.forms)
 
+    def test_excel_picker_recalls_persistent_folder(self):
+        pure=PureLisp(self.forms)
+        pure.host['getenv']=lambda name: 'D:/Projects/Stairs' if name=='CSA_STAIR_EXCEL_FOLDER' else None
+        self.assertEqual(pure.call('csad:excel-folder'),'D:/Projects/Stairs/')
+        pure.host['getenv']=lambda name: None
+        self.assertEqual(pure.call('csad:excel-folder'),'')
+
     def test_bundle_is_current_and_all_helpers_resolve(self):
         build = runpy.run_path(str(TOOL / 'tools/build_stair_bundle.py'))
         self.assertEqual((TOOL / 'tools/CSA_StairDrawing.lsp').read_text(), build['bundle']())

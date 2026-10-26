@@ -444,12 +444,14 @@
       "overall_height"
     ],
     "dimension_extension_lines": {
-      "model_mm": 150,
+      "model_mm": 200,
       "DIMFXLON": 1,
-      "DIMFXL": "150 / effective DIMSCALE",
+      "DIMFXL": "200 / effective DIMSCALE",
       "scope": "New dimension entities only; existing styles preserved",
       "method": "Native DIMOVERRIDE via command-s, new dimensions grouped by effective scale; no manual DSTYLE write"
-    }
+    },
+    "upper_dimension_chain_offset_mm": 775,
+    "floor_level_guides": "Horizontal, left outline -500 to right outline +500; Cao do at aligned right endpoints"
   },
   "reinforcement_drafting": {
     "leader_arrowheads": {
@@ -463,8 +465,8 @@
       }
     },
     "main_anchor_measure": "BJ38 x own diameter. Beam: developed length from actual beam face, entry run + vertical leg, excluding neck outside beam and 2d hook. Upper beam up; lower beam down. No beam: horizontal leg.",
-    "landing_anchor_measure": "BJ38 x own diameter. Bottom at support: entry run + down leg. No support: inclined leg. Top: inclined leg 10 mm inside lower flight axis.",
-    "confirmation": "User confirms Excel-driven anchorage; beam length is total inside beam; plate flight top tail at top landing axis, bottom tail 10 mm below top landing axis.",
+    "landing_anchor_measure": "BJ38 x own diameter. Bottom at support: entry run + down leg. Plate tails: top 10 mm inside lower flight axis, bottom coincident with lower flight axis.",
+    "confirmation": "Latest markup: flight and landing plate tails reference lower body axes, top 10 mm inward and bottom coincident; beam embedment remains Excel-driven.",
     "distribution_cell": "BJ36",
     "distribution_spacing": "True centre spacing along slope/horizontal landing, centered grid",
     "distribution_axis_offset": "BJ28 + displayed transverse diameter / 2 = BJ28 + 1.5 * BJ36 diameter / 2",
@@ -482,15 +484,16 @@
     "longitudinal_axis_offset": "BJ28 to drawn axis, per user image 2 (v4.2); no diameter/2 term",
     "leader_type": {
       "name": "acLineWithArrow",
-      "value": 0,
-      "spline_with_arrow_value": 1
+      "value": 2,
+      "line_no_arrow_value": 0,
+      "spline_with_arrow_value": 3
     },
     "leader_sizes_model_mm": {
       "Dot blank": 60,
       "Architectural tick": 100,
       "editable_in_ui": true
     },
-    "leader_route": "Bottom FLIGHT notes right of stems with DK-KC left of SH circle; others left. Vertical stems, horizontal shelves, 200/200/50 mm grid.",
+    "leader_route": "All lower-layer flight and landing callouts right of stems, circle far right; top-layer callouts left. Vertical stems, horizontal shelves, 200/200/50 mm grid.",
     "hook": {
       "length_in_bar_diameters": 2,
       "acute_return_angle_degrees": 30,
@@ -537,10 +540,6 @@
       "measure": "Developed within beam rectangle from actual entry face, excluding 2d hook and traversal through neck outside beam."
     },
     "anchor_multiplier_cell": "BJ38",
-    "plate_flight_tail_offsets_from_top_landing_mm": {
-      "top": 0,
-      "bottom": -10
-    },
     "landing_top_tail_normal_gap_from_lower_flight_mm": 10,
     "neck_reinforcement": {
       "condition": "No inner beam and vertical neck height strictly >100 mm",
@@ -556,6 +555,10 @@
     "free_outer_end": {
       "top": "At cover line, return to bottom-body axis",
       "bottom_concrete_face_setback_mm": "BJ28 + 20"
+    },
+    "plate_flight_tail_offsets_from_lower_landing_mm": {
+      "top": 10,
+      "bottom": 0
     }
   }
 }

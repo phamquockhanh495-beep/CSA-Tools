@@ -23,6 +23,22 @@ class ConcreteDetailsTests(unittest.TestCase):
     def specs(self, raw=None, gap=400):
         return self.pure.call('csad:detail-specs', raw or self.raw, gap)
 
+    def test_upper_dimension_chain_is_775_above_top_and_step_text_keeps_measurement(self):
+        for gap in (200,400,600):
+            for spec in self.specs(gap=gap):
+                if spec[0] in ('lower_landing','flight_run','upper_landing'):
+                    self.assertEqual(spec[4][1]-self.raw[4][1],775)
+        spec=self.pure.call('csad:step-spec',self.raw,[2,12],400)
+        self.assertEqual(spec[5],'12 x 250.00 = <>')
+        self.assertEqual(self.pure.call('csad:dim-measure',spec),3000)
+
+    def test_level_guides_share_right_end_and_preserve_floor_elevations(self):
+        guides=self.pure.call('csad:level-guides',self.raw)
+        self.assertEqual(len(guides),2)
+        for guide,y in zip(guides,[self.raw[0][1],self.raw[4][1]]):
+            self.assertEqual(guide[0],[self.raw[0][0]-500,y])
+            self.assertEqual(guide[1],[self.raw[5][0]+500,y])
+
     def test_workbook_parameter_contract_matches_geometry(self):
         self.assertIsNone(self.pure.call('csad:detail-error', self.raw, self.metadata))
         wrong = self.metadata.copy()

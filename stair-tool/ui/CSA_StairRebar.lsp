@@ -108,9 +108,9 @@
 
 (defun csar:joint-turn (raw cover upper flighttop / axis landing y)
   (setq axis (csar:flight-axis raw cover flighttop)
-        landing (csar:landingline raw cover 0 upper T)
-        y (- (cadar landing) (if flighttop 0.0 10.0)))
-  ;; Both flight tails reference the TOP landing axis: top at 0, bottom at -10.
+        landing (csar:landingline raw cover 0 upper nil)
+        y (+ (cadar landing) (if flighttop 10.0 0.0)))
+  ;; Both flight tails reference the LOWER landing axis: top at +10, bottom at 0.
   (csar:joint-turn-at raw cover upper flighttop axis y))
 
 (defun csar:hookpoint (previous tip diameter polygon / span dx dy leg c first second)
@@ -209,8 +209,8 @@
       (if leg (csad:cleanpoints (append ending (reverse leg)))))
     (progn
       ;; Top landing tails follow a line 10 mm normal inside the lower flight axis.
-      (setq axis (csar:flight-axis raw (+ cover (if top 10.0 0.0)) (not top))
-            joint (csar:joint-turn-at raw cover upper (not top) axis (cadr edge))
+      (setq axis (csar:flight-axis raw (+ cover (if top 10.0 0.0)) nil)
+            joint (csar:joint-turn-at raw cover upper nil axis (cadr edge))
             knee (cadr joint)
             tip (csar:advance knee (csad:mid (car axis) (cadr axis)) anchor-length))
       (csad:cleanpoints (append ending (list (car joint) knee tip (csar:hookpoint knee tip diameter polygon)))))))
@@ -482,13 +482,13 @@
   (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
   (vlax-safearray-fill array coords)
   ;; Annotation must be an existing CSA BlockReference, not a missing nil argument.
-  ;; AcLeaderType: 0 = acLineWithArrow, 1 = acSplineWithArrow (curved).
+  ;; AcLeaderType: 0=line/no arrow, 1=spline/no arrow, 2=line/arrow, 3=spline/arrow.
   (setq csad-stage "Leader: AddLeader straight segments with CSA annotation")
-  (setq object (csast:track (vla-AddLeader space array annotation 0)))
+  (setq object (csast:track (vla-AddLeader space array annotation 2)))
   (setq csad-stage "Leader: set layer and DimStyle")
   (vla-put-Layer object layer) (vla-put-StyleName object style)
   (setq csad-stage "Leader: set straight Type / ScaleFactor")
-  (vla-put-Type object 0)
+  (vla-put-Type object 2)
   (vla-put-ScaleFactor object 1.0)
   ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
   (setq csad-stage "Leader: set ArrowheadType and model-space size")
@@ -666,9 +666,9 @@
           (setq path (csar:landingpath raw cover (car bar) (csar:anchor-length data (car bar)) side top)
                 region (if side "UPPER" "LOWER")
                 pair (csar:callout-targets raw data region top)
-                midpoint (car pair) point (csar:note-position pair top nil nil))
+                midpoint (car pair) point (csar:note-position pair top nil (not top)))
           (csar:polyline space base path (if preview "CSA-PREVIEW" "18-GB-Reinf"))
-          (csar:note space base midpoint point bar mark nil preview height nil)
+          (csar:note space base midpoint point bar mark nil preview height (not top))
           (setq mark (1+ mark))))))
   ;; One mark per distribution region/layer; displayed dots are 1.5 times BJ36.
   (setq bar (csar:bar (nth 8 data)))
@@ -678,12 +678,12 @@
           pair (csar:callout-targets raw data (car spec) top)
           midpoint (cadr pair))
     (foreach dot dots (csar:dot space base dot (car bar) (if preview "CSA-PREVIEW" "18-GB-Reinf")))
-    (setq point (csar:note-position pair top T (and (= (car spec) "FLIGHT") (not top))))
-    (csar:note space base midpoint point bar mark T preview height (and (= (car spec) "FLIGHT") (not top)))
+    (setq point (csar:note-position pair top T (not top)))
+    (csar:note space base midpoint point bar mark T preview height (not top))
     (setq mark (1+ mark)))
   (setq mark (csar:render-necks space base raw cover mark preview height))
   (setq text (strcat "REBAR DRAFT / COVER=" (rtos cover 2 0)
-    " / ANCHORS=" (rtos (nth 10 data) 2 1) "d / FLIGHT TAILS: TOP=0, BOTTOM=-10 FROM TOP LANDING / HOOK=30 deg, 2d"))
+    " / ANCHORS=" (rtos (nth 10 data) 2 1) "d / FLIGHT TAILS: TOP=+10, BOTTOM=0 FROM LOWER LANDING / HOOK=30 deg, 2d"))
   (csast:text space text (csast:p base minx (- miny (* 5.0 gap))) height
     (if preview "CSA-PREVIEW" "20-GB-GC") "01-GB-Arial")
   (csast:text space "JOINT DETAIL DRAFT / BEND RADII AND FABRICATION SCHEDULE NOT GENERATED"

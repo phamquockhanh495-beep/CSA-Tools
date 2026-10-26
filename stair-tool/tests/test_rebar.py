@@ -284,15 +284,15 @@ class RebarTests(unittest.TestCase):
                             polygon = self.pure.call('csad:cleanpoints', raw)
                             self.assertGreaterEqual(self.pure.call('csar:path-clearance', path, polygon), cover-.01)
 
-    def test_plate_flight_tails_reference_top_landing_at_zero_and_minus_ten(self):
+    def test_plate_tails_reference_lower_axes_with_top_gap_ten(self):
         for raw in (self.support_case(False,False), self.neck_case()):
             for cover in (15,25):
                 for top in (None,True):
                     path = self.pure.call('csar:mainpath',raw,cover,12,360,top)
                     for side in (None, True):
                         a,b = (path[-3],path[-2]) if side else (path[2],path[1])
-                        landing_top = self.pure.call('csar:landingline', raw, cover, 12, side, True)
-                        expected_y = landing_top[0][1]-(0 if top else 10)
+                        landing_lower = self.pure.call('csar:landingline', raw, cover, 12, side, None)
+                        expected_y = landing_lower[0][1]+(10 if top else 0)
                         self.assertAlmostEqual(a[1],expected_y)
                         self.assertAlmostEqual(b[1],expected_y)
                         self.assertAlmostEqual(math.dist(a,b),360)
@@ -306,6 +306,15 @@ class RebarTests(unittest.TestCase):
                     for point in landing[-3:-1]:
                         projection = self.pure.call('csad:project',point,*axis)
                         self.assertAlmostEqual(math.dist(point,projection),10)
+
+    def test_landing_bottom_tail_coincides_with_lower_flight_axis(self):
+        for raw in (self.support_case(False,False),self.neck_case()):
+            for side in (None,True):
+                path=self.pure.call('csar:landingpath',raw,25,12,360,side,None)
+                axis=self.pure.call('csar:flight-axis',raw,25,None)
+                for point in path[-3:-1]:
+                    projection=self.pure.call('csad:project',point,*axis)
+                    self.assertAlmostEqual(math.dist(point,projection),0)
 
     def test_shallow_support_does_not_shorten_total_anchor(self):
         raw = self.support_case(True,True)
@@ -365,7 +374,7 @@ class RebarTests(unittest.TestCase):
             self.assertTrue(all(note[6] is True for note in notes[count:])) # dot blank
             self.assertTrue(dots)
             self.assertTrue(all(dot[3] == 12 and dot[4] == '18-GB-Reinf' for dot in dots))
-            expected_right = [True,False,False,True,False,False] if count == 3 else [True,False,False,False,False,False,True,False,False,False,False,False]
+            expected_right = [True]*6 if count == 3 else [True,False,True,False,True,False,True,True,True,False,False,False]
             self.assertEqual([bool(note[9]) for note in notes], expected_right)
             pairs = [(0,3),(1,4),(2,5)] if count == 3 else [(0,6),(1,9),(2,7),(3,10),(4,8),(5,11)]
             for main_index, dot_index in pairs:
@@ -448,8 +457,8 @@ class RebarTests(unittest.TestCase):
             self.assertEqual(props['annotation'], 'CSA note BlockReference')
             self.assertEqual(props['arrow'], expected)
             self.assertEqual(props['scale'], 1)
-            self.assertEqual(props['kind'], 0) # acLineWithArrow, NOT acSplineWithArrow
-            self.assertEqual(props['type'], 0)
+            self.assertEqual(props['kind'], 2) # acLineWithArrow; 0 is line WITHOUT arrow
+            self.assertEqual(props['type'], 2)
             self.assertEqual(props['size'], 60 if dotted else 100)
             self.assertEqual(props['final_coords'], props['coords'])
             self.assertEqual(props['coords'], [11,22,30,13,24,30,15,24,30])
