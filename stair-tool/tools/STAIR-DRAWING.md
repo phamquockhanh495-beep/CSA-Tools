@@ -16,6 +16,26 @@ Tải `CSA_StairDrawing.lsp` tại thư mục này. File đã gộp toàn bộ h
 
 Sau khi thay đổi Excel phải bấm **Load / Reload Excel**; không có đồng bộ nền. Nút Close chỉ đóng giao diện, không tự xóa preview để người dùng kiểm tra ngoài viewport. Khi đổi DWG, dữ liệu Excel đã nạp vẫn có thể dùng, nhưng tài nguyên và đơn vị của DWG đích được kiểm tra lại trước mỗi lần vẽ.
 
+## Cập nhật v5.6 — polyline ghi chú và bốn thanh tại dầm chiếu tới
+
+- Đầu ngoài thép ngang lớp dưới dừng cách đoạn bẻ của lớp trên **20 mm theo phương ngang**, hướng vào bản. Khoảng cách tới mặt bê tông là BTBV + 20 mm, cả khi có dầm mép ngoài. Thanh trên vẫn bẻ xuống tới tim lớp dưới.
+- Đường ghi chú là **LWPOLYLINE**, không tạo entity LEADER. Tick và vòng Dot blank là các ký hiệu riêng với kích thước mm theo UI; polyline chỉ chạm mép vòng Dot blank, không xuyên tâm. Chữ và vòng số hiệu SH vẫn dùng block CSA. Chỉnh thông số rồi vẽ lại; ký hiệu riêng không tự theo grip của polyline.
+- Với lớp dưới của bản xiên và cả hai chiếu nghỉ/chiếu tới, chân polyline chỉ thép dọc nằm **bên phải chân chỉ thép chấm 50 mm**. Hai điểm chỉ vẫn nằm trên thanh và chấm thật; bộ tránh va chạm tiếp tục điều chỉnh vị trí phần chữ.
+- Dim chiều dày bản xiên đặt tại **1/3 chiều dài từ đầu dưới lên**, đo vuông góc tới đáy bản; không dịch thêm theo Dimension spacing.
+
+Chi tiết mới chỉ áp dụng khi có dầm tại nút **đầu trên bản xiên / chiếu tới**:
+
+| Thanh | Hình học neo |
+|---|---|
+| 1 — lớp dưới bản xiên | Kéo thẳng theo trục thép tới mép xa dầm trừ BTBV, rồi bẻ xuống. |
+| 2 — lớp trên bản xiên | Nối tại giao điểm với đường ngang thấp hơn tim thép trên chiếu tới 10 mm, rồi neo ngang sang phải. |
+| 3 — lớp trên chiếu tới | Kéo tới mặt đứng bậc cuối cộng BTBV vào trong bê tông, rồi bẻ xuống. |
+| 4 — lớp dưới chiếu tới | Nối tại giao điểm với đường song song cách tim thép trên bản xiên 10 mm vào trong bản, rồi neo xuống dọc vế xiên. |
+
+Cả bốn đoạn neo lấy **BJ38 × đường kính từng thanh, tính từ góc bẻ tới đầu neo**, chưa gồm móc quay ngược 30° dài 2d. “Fillet” được thể hiện bằng giao điểm hai đường tim (góc nối, chưa có bán kính uốn mới). Các quy tắc tại dầm đầu dưới và nút không dầm giữ riêng như trước. Không đổi dữ liệu Excel hay tự cắt ngắn neo khi không đủ BTBV; với đoạn bẻ xuống mới, kiểm tra kích thước dầm thực tế vẫn có thể báo không đủ chỗ.
+
+APPLOAD **v5.6**, xác nhận dòng phiên bản rồi Reload Excel / tạo Preview mới. Kiểm tra Properties của đường ghi chú là Polyline, chân vòng tròn không xuyên tâm và bốn thanh tại dầm trên đúng bảng. Bản vẽ cũ không tự cập nhật. Đã kiểm tra hình học offline; chưa kiểm chứng AutoCAD/Excel COM trên Windows. File phát hành là `.lsp`, chưa đóng gói `.dvb`.
+
 ## Sửa lỗi dừng khi bố trí ghi chú — v5.5.2
 
 Thông báo `No clear position found for rebar label` xuất phát từ bộ tránh va chạm, không phải kiểm tra chiều dài neo. Bản trước coi vùng bao toàn bộ DIMENSION là vùng kín và chỉ thử dịch ngang về phía điểm chỉ; hết 80 vị trí thử thì gọi `exit`, hủy mặt cắt đang tạo.

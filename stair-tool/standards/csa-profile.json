@@ -451,7 +451,8 @@
       "method": "Native extensions suppressed; separate tracked strokes clipped to max 200 model mm, true dimension witness points retained"
     },
     "upper_dimension_chain_offset_mm": 775,
-    "floor_level_guides": "Existing layer 01-GB-Grid; Cao do blocks on 11-GB-Cao Do"
+    "floor_level_guides": "Existing layer 01-GB-Grid; Cao do blocks on 11-GB-Cao Do",
+    "inclined_slab_dimension_position": "One third from lower end along upper inclined concrete face; dimension line passes through midpoint of perpendicular thickness segment"
   },
   "reinforcement_drafting": {
     "leader_arrowheads": {
@@ -464,9 +465,9 @@
         "AcDimArrowheadType": 12
       }
     },
-    "main_anchor_measure": "BJ38 x own diameter. Beam: developed length from actual beam face, entry run + vertical leg, excluding neck outside beam and 2d hook. Upper beam up; lower beam down. No beam: horizontal leg.",
-    "landing_anchor_measure": "BJ38 x own diameter. Bottom at support: entry run + down leg. Plate tails: top 10 mm inside lower flight axis, bottom coincident with lower flight axis.",
-    "confirmation": "Latest markup: flight and landing plate tails reference lower body axes, top 10 mm inward and bottom coincident; beam embedment remains Excel-driven.",
+    "main_anchor_measure": "BJ38 x own diameter, excluding 2d hook. Upper support: from bend to tip, bottom down at far cover face, top horizontal 10 mm below upper landing top axis. Lower support: developed inside beam from actual entry face. No beam: horizontal leg.",
+    "landing_anchor_measure": "Upper support: BJ38 x own diameter from bend, top down at final-riser cover face, bottom downhill 10 mm normal inside upper flight axis. Lower support bottom: entry run + down leg. Without support: top 10 mm inside lower flight axis, bottom coincident.",
+    "confirmation": "v5.6 four-bar upper support detail; intersect offset lines at sharp bends, anchor length from bend; outer lower endpoint 20 mm inward from upper return.",
     "distribution_cell": "BJ36",
     "distribution_spacing": "True centre spacing along slope/horizontal landing, centered grid",
     "distribution_axis_offset": "BJ28 + displayed transverse diameter / 2 = BJ28 + 1.5 * BJ36 diameter / 2",
@@ -483,16 +484,15 @@
     },
     "longitudinal_axis_offset": "BJ28 to drawn axis, per user image 2 (v4.2); no diameter/2 term",
     "leader_type": {
-      "name": "acLineNoArrow",
-      "value": 0,
-      "visible_markers": "Separate tracked model-space thick tick / open circle, sized by UI"
+      "name": "LWPOLYLINE",
+      "visible_markers": "Separate tracked model-space thick tick / open circle, sized by UI; polyline trimmed to circle perimeter"
     },
     "leader_sizes_model_mm": {
       "Dot blank": 60,
       "Architectural tick": 100,
       "editable_in_ui": true
     },
-    "leader_route": "All lower-layer flight and landing callouts right of stems, circle far right; top-layer callouts left. Vertical stems, horizontal shelves, 200/200/50 mm grid.",
+    "leader_route": "All lower-layer callouts face right; longitudinal stem is 50 mm right of dot stem. Top-layer callouts face left. Orthogonal polyline with 200 mm shelf spacing; dotted stem stops at circle edge.",
     "hook": {
       "length_in_bar_diameters": 2,
       "acute_return_angle_degrees": 30,
@@ -531,12 +531,12 @@
         12,
         10
       ],
-      "landing_bottom_bend": "Opposite cover face from landing approach; down; total embedment from landing-side beam face.",
+      "landing_bottom_bend": "Upper: intersection with upper flight axis offset inward 10 mm, anchor downhill. Lower: opposite cover face/down, total from entry face.",
       "hook": "30-degree return, 2d",
       "confirmed_by_user": true,
       "geometry_scope": "Full path must fit existing concrete and cover; no shortening or added beam geometry",
-      "flight_bend": "Both layers: upper beam far cover face/up; lower beam far cover face/down, near cover face if neck obstructs path.",
-      "measure": "Developed within beam rectangle from actual entry face, excluding 2d hook and traversal through neck outside beam."
+      "flight_bend": "Upper bottom: far cover face/down. Upper top: intersect upper landing top axis minus 10 mm, anchor right. Lower both: previous total-in-beam down detail.",
+      "measure": "Upper junction four bars: BJ38*d from bend, excluding 2d hook. Lower junction: developed inside actual beam from entry face, excluding hook and outside neck."
     },
     "anchor_multiplier_cell": "BJ38",
     "landing_top_tail_normal_gap_from_lower_flight_mm": 10,
@@ -562,7 +562,7 @@
     "label_collision_placement": "Block bounding boxes, dimension display geometry, leader segments, 20 mm clearance, 144 local candidates then outer clear row without abort; leader crossings not guaranteed",
     "outer_beam_end": {
       "top": "At concrete face minus cover, turn down to lower landing body axis; no 2d tail",
-      "bottom": "Straight termination at concrete face minus cover",
+      "bottom": "Straight termination 20 mm inward from upper return; concrete face setback BJ28 + 20",
       "length": "Layer elevation difference; independent of BJ38"
     }
   }

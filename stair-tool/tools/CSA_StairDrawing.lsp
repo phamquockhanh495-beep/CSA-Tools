@@ -329,12 +329,13 @@
   (setq specs (csad:addspec "upper_last_beam_width" "H" p8 p7 (list maxx uppery) specs))
   (setq specs (csad:addspec "lower_step_rise" "V" p2 p3 (list (- (car p2) gap) (cadr p3)) specs))
   (setq specs (csad:addspec "upper_step_rise" "V" p4 p5 (list (- (car p4) gap) (cadr p5)) specs))
-  ;; Perpendicular thickness: project the upper midspan onto the true soffit.
-  (setq p (csad:mid p3 p4) q (csad:project p p14 p15)
+  ;; Perpendicular thickness at one third of the flight, measured uphill.
+  (setq p (list (+ (car p3) (/ (- (car p4) (car p3)) 3.0))
+                      (+ (cadr p3) (/ (- (cadr p4) (cadr p3)) 3.0))) q (csad:project p p14 p15)
         mid (csad:mid p q) flight-span (distance p3 p4)
         dx (/ (- (car p4) (car p3)) flight-span) dy (/ (- (cadr p4) (cadr p3)) flight-span))
   (setq specs (csad:addspec "inclined_slab_normal" "A" q p
-    (list (- (car mid) (* dx gap)) (- (cadr mid) (* dy gap))) specs))
+    mid specs))
   (reverse specs))
 
 ;;; Use AutoCAD's native override command instead of hand-writing DSTYLE xdata.
@@ -576,15 +577,14 @@
 
 (defun csar:landing-end (raw cover diameter upper top / body edge bottom)
   ;; Outer end: top returns to the lower-body axis, with or without an end beam.
-  ;; Bottom ends at cover with a beam; a free end retains cover + 20 mm.
+  ;; Bottom endpoint is 20 mm inward from the top return, at all outer ends.
   (setq body (csar:landingline raw cover diameter upper top)
         edge (if upper (cadr body) (car body)))
   (if top
     (progn
       (setq bottom (csar:landingline raw cover diameter upper nil))
       (list (list (car edge) (cadar bottom)) edge))
-    (if (csar:outer-support raw upper) (list edge)
-      (list (list (+ (car edge) (if upper -20.0 20.0)) (cadr edge))))))
+    (list (list (+ (car edge) (if upper -20.0 20.0)) (cadr edge)))))
 
 (defun csar:support-label (raw / lower upper)
   (if (/= (length raw) 24) "Beam supports: requires 24-row section data"
@@ -667,10 +667,39 @@
             path (csar:beam-leg entry near embedment-mm diameter -1.0 polygon))))
   path)
 
+(defun csar:upper-beam-flight-end (raw cover diameter anchor-length top / beam axis bend tip polygon y)
+  ;; Upper support detail: bar 1 turns DOWN at the far cover face;
+  ;; bar 2 intersects the upper landing axis offset 10 mm into the slab.
+  ;; BJ38*d starts at the bend, with the 2d return hook additional.
+  (setq beam (csar:support-beam raw T) axis (csar:flight-axis raw cover top)
+        polygon (csad:cleanpoints raw))
+  (if top
+    (progn
+      (setq y (- (cadar (csar:landingline raw cover diameter T T)) 10.0)
+            bend (csar:aty (car axis) (cadr axis) y)
+            tip (list (+ (car bend) anchor-length) y)))
+    (setq bend (csar:atx (car axis) (cadr axis) (- (nth 1 beam) cover))
+          tip (list (car bend) (- (cadr bend) anchor-length))))
+  (list (csar:hookpoint bend tip diameter polygon) tip bend))
+
+(defun csar:upper-beam-landing-end (raw cover diameter anchor-length top y / axis bend tip polygon)
+  ;; Bar 3 returns down at the last-riser cover face. Bar 4 intersects
+  ;; a line 10 mm normal inside the upper flight bar, then follows it downhill.
+  (setq polygon (csad:cleanpoints raw))
+  (if top
+    (setq bend (list (+ (car (nth 4 raw)) cover) y)
+          tip (list (car bend) (- y anchor-length)))
+    (progn
+      (setq axis (csar:flight-axis raw (+ cover 10.0) T)
+            bend (csar:aty (car axis) (cadr axis) y)
+            tip (csar:advance bend (car axis) anchor-length))))
+  (list bend tip (csar:hookpoint bend tip diameter polygon)))
+
 (defun csar:main-end (raw cover diameter anchor-length upper top / beam joint tip polygon)
   (setq polygon (csad:cleanpoints raw))
   (if (setq beam (csar:support-beam raw upper))
-    (csar:beam-flight-end raw cover diameter anchor-length upper top)
+    (if upper (csar:upper-beam-flight-end raw cover diameter anchor-length top)
+              (csar:beam-flight-end raw cover diameter anchor-length upper top))
     (progn
       (setq joint (csar:joint-turn raw cover upper top)
             tip (list (+ (caar joint) (* (if upper 1.0 -1.0) anchor-length)) (cadar joint)))
@@ -687,7 +716,8 @@
       (setq issue (strcat (if upper "Upper" "Lower")
         (if (csar:support-beam raw upper) " beam" " plate joint")
         " / flight " (if top "top" "bottom") ": anchor " (rtos embedment-mm 2 1)
-        " mm (BJ38 x d), plus 2d hook, does not fit cover. Check actual support size and BJ38; length was not shortened."))))
+        (if (and upper (csar:support-beam raw upper)) " mm from bend (BJ38 x d)" " mm (BJ38 x d)")
+        ", plus 2d hook, does not fit cover. Check actual support size and BJ38; length was not shortened."))))
   issue)
 
 (defun csar:mainpath (raw cover diameter anchor-length top / lower upper)
@@ -698,6 +728,8 @@
 (defun csar:landingpath (raw cover diameter anchor-length upper top / axis joint edge knee tip polygon beam bend ending entry leg)
   (setq ending (csar:landing-end raw cover diameter upper top)
         edge (car (reverse ending)) polygon (csad:cleanpoints raw))
+  (if (and upper (csar:support-beam raw T))
+    (csad:cleanpoints (append ending (csar:upper-beam-landing-end raw cover diameter anchor-length top (cadr edge))))
   (if (and (not top) (setq beam (csar:support-beam raw upper)))
     (progn
       ;; Landing lower bar enters from the landing side and turns down at
@@ -712,7 +744,7 @@
             joint (csar:joint-turn-at raw cover upper nil axis (cadr edge))
             knee (cadr joint)
             tip (csar:advance knee (csad:mid (car axis) (cadr axis)) anchor-length))
-      (csad:cleanpoints (append ending (list (car joint) knee tip (csar:hookpoint knee tip diameter polygon)))))))
+      (csad:cleanpoints (append ending (list (car joint) knee tip (csar:hookpoint knee tip diameter polygon))))))))
 
 (defun csar:neck-height (raw upper)
   (if upper (- (cadr (nth 4 raw)) (cadr (nth 3 raw)))
@@ -997,30 +1029,15 @@
   (vla-put-Layer object layer)
   object)
 
-(defun csar:leader (space base points layer dotted size style annotation / coords point array object)
-  (foreach point points
-    (setq coords (append coords (csast:p base (car point) (cadr point)))))
-  (setq array (vlax-make-safearray vlax-vbDouble (cons 0 (1- (length coords)))))
-  (vlax-safearray-fill array coords)
-  ;; Annotation must be an existing CSA BlockReference, not a missing nil argument.
-  ;; AcLeaderType: 0=line/no arrow, 1=spline/no arrow, 2=line/arrow, 3=spline/arrow.
-  (setq csad-stage "Leader: AddLeader straight segments with CSA annotation")
-  (setq object (csast:track (vla-AddLeader space array annotation 0)))
-  (setq csad-stage "Leader: set layer and DimStyle")
-  (vla-put-Layer object layer) (vla-put-StyleName object style)
-  (setq csad-stage "Leader: set straight Type / ScaleFactor")
-  (vla-put-Type object 0)
-  (vla-put-ScaleFactor object 1.0)
-  ;; AcDimArrowheadType: 12 = acArrowDotBlank, 4 = acArrowArchTick.
-  (setq csad-stage "Leader: set ArrowheadType and model-space size")
-  (vla-put-ArrowheadType object (if dotted 12 4))
-  (vla-put-ArrowheadSize object size)
-  ;; Associating an annotation may reposition vertices/add a landing. Reapply
-  ;; the exact three vertices after the style and annotation have been assigned.
-  (setq csad-stage "Leader: restore perpendicular vertical and horizontal coordinates")
-  (vla-put-Coordinates object array)
-  (vla-put-Type object 0)
-  (vla-Update object)
+(defun csar:callout-route (points dotted size / start nextpoint)
+  ;; Stop at the marker circumference, never draw through the blank circle.
+  (setq start (car points) nextpoint (cadr points))
+  (if dotted (cons (csar:advance start nextpoint (/ size 2.0)) (cdr points)) points))
+
+(defun csar:leader (space base points layer dotted size style annotation / object)
+  ;; Kept as an internal entry point; output is now a tracked LWPOLYLINE.
+  (setq csad-stage "Rebar callout: polyline and explicit marker")
+  (setq object (csar:polyline space base (csar:callout-route points dotted size) layer))
   (csar:leader-marker space base (car points) layer dotted size)
   object)
 
@@ -1272,6 +1289,7 @@
       ;; The dot leader targets an actual dot; the tick targets the actual bar.
       ;; Preserve a true 50 mm horizontal separation, rather than offsetting a
       ;; leader tip away from its entity or moving the dot grid.
+      (if (not top) (setq first second))
       (cond ((and (< (csar:point-segment-distance first (car axis) (cadr axis)) 0.01)
                   (< (csar:point-path-distance first path) 0.01)) (list first dot))
             ((and (< (csar:point-segment-distance second (car axis) (cadr axis)) 0.01)
@@ -1730,5 +1748,5 @@
   (princ "\nRun CSA_STAIR_DRAWING to reopen. Loaded coordinates are a snapshot; reload after Excel edits.")
   (princ))
 
-(princ "\nCSA Stair rebar-detail v5.5.2 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
+(princ "\nCSA Stair rebar-detail v5.6 loaded. Run CSA_STAIR_DRAWING; reload Excel once.")
 (princ)

@@ -75,6 +75,10 @@ class ConcreteDetailsTests(unittest.TestCase):
     def test_inclined_thickness_is_perpendicular_not_vertical(self):
         spec = next(s for s in self.specs() if s[0] == 'inclined_slab_normal')
         a, b = spec[2:4]
+        expected=[self.raw[2][i]+(self.raw[3][i]-self.raw[2][i])/3 for i in (0,1)]
+        for actual,wanted in zip(b,expected): self.assertAlmostEqual(actual,wanted)
+        for actual,wanted in zip(spec[4],[(a[i]+b[i])/2 for i in (0,1)]):
+            self.assertAlmostEqual(actual,wanted)
         slope = [self.raw[3][i] - self.raw[2][i] for i in (0, 1)]
         self.assertAlmostEqual(sum((b[i] - a[i]) * slope[i] for i in (0, 1)), 0, places=6)
         self.assertNotAlmostEqual(abs(b[1] - a[1]), 120, places=2)

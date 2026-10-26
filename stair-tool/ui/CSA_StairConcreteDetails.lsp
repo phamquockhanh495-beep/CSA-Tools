@@ -88,12 +88,13 @@
   (setq specs (csad:addspec "upper_last_beam_width" "H" p8 p7 (list maxx uppery) specs))
   (setq specs (csad:addspec "lower_step_rise" "V" p2 p3 (list (- (car p2) gap) (cadr p3)) specs))
   (setq specs (csad:addspec "upper_step_rise" "V" p4 p5 (list (- (car p4) gap) (cadr p5)) specs))
-  ;; Perpendicular thickness: project the upper midspan onto the true soffit.
-  (setq p (csad:mid p3 p4) q (csad:project p p14 p15)
+  ;; Perpendicular thickness at one third of the flight, measured uphill.
+  (setq p (list (+ (car p3) (/ (- (car p4) (car p3)) 3.0))
+                      (+ (cadr p3) (/ (- (cadr p4) (cadr p3)) 3.0))) q (csad:project p p14 p15)
         mid (csad:mid p q) flight-span (distance p3 p4)
         dx (/ (- (car p4) (car p3)) flight-span) dy (/ (- (cadr p4) (cadr p3)) flight-span))
   (setq specs (csad:addspec "inclined_slab_normal" "A" q p
-    (list (- (car mid) (* dx gap)) (- (cadr mid) (* dy gap))) specs))
+    mid specs))
   (reverse specs))
 
 ;;; Use AutoCAD's native override command instead of hand-writing DSTYLE xdata.
