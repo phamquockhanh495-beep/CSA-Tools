@@ -3,6 +3,7 @@ Option Explicit
 
 Public Sub CSA_RenderPreview(ByRef v As CSAStairInput)
     Dim message As String
+    If Not CSA_HostReady() Then Exit Sub
     If Not CSA_ValidateInput(v, message) Then
         MsgBox message, vbExclamation, "CSA Stair Drawing"
         Exit Sub
@@ -19,6 +20,7 @@ End Sub
 
 Public Sub CSA_DrawSectionFinal(ByRef v As CSAStairInput)
     Dim message As String
+    If Not CSA_HostReady() Then Exit Sub
     If Not CSA_ValidateInput(v, message) Then
         MsgBox message, vbExclamation, "CSA Stair Drawing"
         Exit Sub
@@ -33,6 +35,7 @@ End Sub
 
 Public Sub CSA_DrawPlanFinal(ByRef v As CSAStairInput)
     Dim message As String
+    If Not CSA_HostReady() Then Exit Sub
     If Not CSA_ValidateInput(v, message) Then
         MsgBox message, vbExclamation, "CSA Stair Drawing"
         Exit Sub

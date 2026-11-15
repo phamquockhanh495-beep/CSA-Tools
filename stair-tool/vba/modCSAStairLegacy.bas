@@ -12,6 +12,7 @@ Option Explicit
 Public Sub CSA_PreviewCurrentWorkbook()
     Dim path As String, message As String
     Dim xs() As Double, ys() As Double, count As Long
+    If Not CSA_HostReady() Then Exit Sub
     path = InputBox("Enter the Excel file path or its folder:", "Preview current workbook")
     If Len(Trim$(path)) = 0 Then Exit Sub
     path = ResolveLegacyWorkbookPath(path)

@@ -4,6 +4,7 @@ Option Explicit
 Public gCSAStair As CSAStairInput
 
 Public Sub CSA_StairTools()
+    If Not CSA_HostReady() Then Exit Sub
     gCSAStair = CSA_DefaultInput()
     Load frmCSAStair
     frmCSAStair.Show

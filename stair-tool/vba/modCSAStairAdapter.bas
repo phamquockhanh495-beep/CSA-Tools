@@ -3,9 +3,11 @@ Option Explicit
 
 ' Native CSA resources from csa-profile.json; no dependency on Excel or UDTs.
 ' Existing definitions are never recreated or restyled.
+' Import modCSAStairHost for the AutoCAD 2018-2026 x64 preflight.
 
 Public Function CSA_MissingStandards() As String
     Dim names As Variant, name As Variant, obj As Object, missing As String
+    CSA_RequireSupportedHost
     names = Array("06-GB-Slab-bor", "21-GB-BD", "04-GB-Dim", "10-GB-Text", _
                   "11-GB-Cao Do", "12-GB-Ky Hieu", "18-GB-Reinf", "20-GB-GC")
     For Each name In names
@@ -56,6 +58,7 @@ Public Function CSA_InsertTaggedBlock(ByVal name As String, ByVal layer As Strin
     Dim expected As Object, i As Long, key As String
     Dim errorNumber As Long, errorText As String, actualScale As Double
     On Error GoTo Failed
+    CSA_RequireSupportedHost
     If scale <= 0# Then Err.Raise vbObjectError + 421, , "Block scale must be positive."
     Set definition = ThisDrawing.Blocks.Item(name)
     RequireWritableLayer layer
@@ -129,6 +132,7 @@ Public Function CSA_AddAlignedDimension(ByVal first As Variant, ByVal last As Va
     ByVal location As Variant, ByVal styleName As String) As Object
     Dim style As Object, obj As Object, errorNumber As Long, errorText As String
     On Error GoTo Failed
+    CSA_RequireSupportedHost
     Set style = ThisDrawing.DimStyles.Item(styleName)
     RequireWritableLayer "04-GB-Dim"
     Set obj = ThisDrawing.ModelSpace.AddDimAligned(first, last, location)

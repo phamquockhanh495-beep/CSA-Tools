@@ -47,6 +47,7 @@ Public Sub CSA_ClearPreview()
     Dim toDelete As Collection
     Dim ent As Object
     Dim item As Variant
+    If Not CSA_HostReady() Then Exit Sub
     Set toDelete = New Collection
 
     For Each ent In ThisDrawing.ModelSpace
@@ -60,6 +61,7 @@ Public Sub CSA_ClearPreview()
 End Sub
 
 Public Sub CSA_CleanPreviewCommand()
+    If Not CSA_HostReady() Then Exit Sub
     CSA_ClearPreview
     MsgBox "CSA preview cleared.", vbInformation, "CSA Stair Drawing"
 End Sub

@@ -24,8 +24,25 @@ This milestone uses the existing section coordinates in `Cau Thang Tools`. Plan 
 
 The MVP targets a two-flight U-shaped stair and uses AutoCAD layer `CSA-PREVIEW` for disposable geometry. The same coordinate builder is used for preview and final drawing so the preview is a faithful check of the geometry that will be committed.
 
+## AutoCAD 2018–2026 VBA API foundation
+
+AutoCAD 2022 is the primary acceptance target. The source targets full AutoCAD
+for Windows x64 with the version-matched VBA Enabler. Read
+[`vba/API-COMPATIBILITY.md`](vba/API-COMPATIBILITY.md) for the nine-release matrix,
+import instructions, limitations and native smoke tests. This adds host guards
+to the existing VBA prototype; it does not port the v5.6 Lisp engine or build the
+proposed interactive UserForm. Native compile/runtime acceptance is pending for
+all nine releases.
+
+Download the [API diagnostic source package](tools/CSA_Stair_VBA_API_2018-2026.zip).
+For an isolated first check, import only `modCSAStairHost.bas`,
+`modCSAStairWinApi.bas` and `modCSAStairApiTests.bas` into a separate VBA project.
+Run `CSA_CheckCompatibility`, `CSA_TestVersionMapping`, then
+`CSA_TestActiveXApi`. The last macro creates and closes an unsaved test drawing.
+
 ## Import order in AutoCAD VBA
 
+0. Import `vba/modCSAStairHost.bas` (required by the current prototype and native adapter).
 1. Import `vba/modCSAStairTypes.bas`.
 2. Import `vba/modCSAStairLayers.bas`.
 3. Import `vba/modCSAStairGeometry.bas`.
@@ -60,7 +77,7 @@ For the next test, load only [`tools/CSA_StairStandardsTest.lsp`](tools/CSA_Stai
 
 VBA layer constants now target native CSA layers. Existing layer properties are preserved, only a missing `CSA-PREVIEW` can be created, and new preview geometry is tagged for cleanup. Previously untagged preview geometry is intentionally retained. The standalone compatibility module remains independent of the multi-module sources.
 
-`vba/modCSAStairAdapter.bas` provides `CSA_MissingStandards`, tag-based block insertion helpers and aligned dimensions using an existing style. It has no UDT or Excel dependency and can be imported independently for later integration. The Lisp acceptance tool requires no VBA import.
+`vba/modCSAStairAdapter.bas` provides `CSA_MissingStandards`, tag-based block insertion helpers and aligned dimensions using an existing style. It has no UDT or Excel dependency; import it together with `modCSAStairHost.bas` for later integration. The Lisp acceptance tool requires no VBA import.
 
 Offline validation: `python3 -m unittest discover -s stair-tool/tests -v`. Fetch the recorded source commit from `origin/main` first if not present locally. These checks compare names/tags/attributes with the native CSV export and inspect source structure; they do not compile VBA or execute AutoCAD.
 
