@@ -24,7 +24,7 @@ Public Sub CSA_TestActiveXApi()
     ' Explicit opt-in macro. All writes occur in a NEW unsaved test drawing.
     ' Never save, erase or change entities/resources in the user's drawing.
     Dim original As Object, app As Object, testDoc As Object, space As Object
-    Dim line As Object, pline As Object, circle As Object, text As Object, dimObj As Object
+    Dim lineObj As Object, pline As Object, circleObj As Object, textObj As Object, dimObj As Object
     Dim blockDef As Object, blockRef As Object, attDef As Object, att As Variant
     Dim attrs As Variant, coords(0 To 5) As Double, low As Variant, high As Variant
     Dim codes(0 To 1) As Integer, values(0 To 1) As Variant
@@ -41,25 +41,25 @@ Public Sub CSA_TestActiveXApi()
     Set space = testDoc.ModelSpace
     stage = "Layers and primitive entities"
     Set obj = testDoc.Layers.Add("CSA_API_TEST")
-    Set line = space.AddLine(CSA_Point3D(0, 0), CSA_Point3D(100, 0))
-    line.Layer = obj.Name
+    Set lineObj = space.AddLine(CSA_Point3D(0, 0), CSA_Point3D(100, 0))
+    lineObj.Layer = obj.Name
     coords(0) = 0: coords(1) = 0
     coords(2) = 100: coords(3) = 0
     coords(4) = 100: coords(5) = 100
     Set pline = space.AddLightWeightPolyline(coords)
     pline.Closed = False
-    Set circle = space.AddCircle(CSA_Point3D(100, 100), 30#)
-    Set text = space.AddText("%%C10a200", CSA_Point3D(0, 150), 10#)
-    Require Abs(line.Length - 100#) < 0.000001, "Line length round trip."
-    Require Abs(circle.Radius - 30#) < 0.000001, "Circle radius round trip."
-    Require text.TextString = "%%C10a200", "Text round trip."
+    Set circleObj = space.AddCircle(CSA_Point3D(100, 100), 30#)
+    Set textObj = space.AddText("%%C10a200", CSA_Point3D(0, 150), 10#)
+    Require Abs(lineObj.Length - 100#) < 0.000001, "Line length round trip."
+    Require Abs(circleObj.Radius - 30#) < 0.000001, "Circle radius round trip."
+    Require textObj.TextString = "%%C10a200", "Text round trip."
     stage = "Dimensions and bounding box"
     Set dimObj = space.AddDimAligned(CSA_Point3D(0, 0), CSA_Point3D(100, 0), CSA_Point3D(50, -50))
     dimObj.ExtLine1Suppress = True
     dimObj.ExtLine2Suppress = True
     dimObj.Update
     Require Abs(dimObj.Measurement - 100#) < 0.000001, "Dimension measurement round trip."
-    circle.GetBoundingBox low, high
+    circleObj.GetBoundingBox low, high
     Require Abs(CDbl(high(0)) - CDbl(low(0)) - 60#) < 0.000001, "Bounding box round trip."
     stage = "Block attributes"
     Set blockDef = testDoc.Blocks.Add(CSA_Point3D(0, 0), "CSA_API_TEST_BLOCK")

@@ -123,7 +123,7 @@ class StandardsTests(unittest.TestCase):
         for method, name in [('Elevation', 'Cao do'), ('SectionSymbol', 'Daucat'),
                              ('BarMark', 'So hieu thep'), ('BarNote', 'CSA_Sohieu-KCthep')]:
             match = re.search(r'Function CSA_Insert' + method +
-                              r'\b.*?Optional ByVal scale As Double = ([\d.]+)', source, re.S)
+                              r'\b.*?Optional ByVal blockScale As Double = ([\d.]+)', source, re.S)
             self.assertEqual(float(match[1]), scales[name])
 
 

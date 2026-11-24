@@ -136,6 +136,23 @@ class VbaApiCompatibilityTests(unittest.TestCase):
                         self.assertIn(b'\r\n', raw, member)
                         self.assertNotIn(b'\n', raw.replace(b'\r\n', b''), member)
 
+    def test_no_vba_reserved_keywords_as_identifiers(self):
+        forbidden = ('scale', 'line', 'circle', 'pset', 'input', 'print',
+                     'write', 'open', 'close', 'lock', 'stop', 'step')
+        files = list(VBA.glob('*.bas')) + list(UI.glob('*.cls')) + [UI / 'frmCSAStair.code.bas']
+        for path in files:
+            for lineno, raw in enumerate(path.read_text().splitlines(), 1):
+                code = raw.split("'", 1)[0]
+                for kw in forbidden:
+                    self.assertNotRegex(
+                        code, rf'\b(?:ByVal|ByRef|Dim|Private|Public|For)\s+(?:WithEvents\s+)?{kw}\b',
+                        f'Reserved VBA keyword "{kw}" used at {path.name}:{lineno}'
+                    )
+                    self.assertNotRegex(
+                        code, rf',\s*{kw}\s+As\b',
+                        f'Reserved VBA keyword "{kw}" used at {path.name}:{lineno}'
+                    )
+
 
 if __name__ == '__main__':
     unittest.main()

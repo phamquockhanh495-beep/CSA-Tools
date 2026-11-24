@@ -52,14 +52,14 @@ Private Sub ApplyLayer(ByVal ent As Object, ByVal name As String)
 End Sub
 
 Public Function CSA_InsertTaggedBlock(ByVal name As String, ByVal layer As String, _
-    ByVal point As Variant, ByVal scale As Double, ByVal tags As Variant, _
+    ByVal point As Variant, ByVal blockScale As Double, ByVal tags As Variant, _
     ByVal texts As Variant) As Object
     Dim definition As Object, obj As Object, attributes As Variant, att As Variant
     Dim expected As Object, i As Long, key As String
     Dim errorNumber As Long, errorText As String, actualScale As Double
     On Error GoTo Failed
     CSA_RequireSupportedHost
-    If scale <= 0# Then Err.Raise vbObjectError + 421, , "Block scale must be positive."
+    If blockScale <= 0# Then Err.Raise vbObjectError + 421, , "Block scale must be positive."
     Set definition = ThisDrawing.Blocks.Item(name)
     RequireWritableLayer layer
     If UBound(tags) - LBound(tags) <> UBound(texts) - LBound(texts) Then
@@ -70,13 +70,13 @@ Public Function CSA_InsertTaggedBlock(ByVal name As String, ByVal layer As Strin
     For i = LBound(tags) To UBound(tags)
         expected.Add CStr(tags(i)), CStr(texts(i - LBound(tags) + LBound(texts)))
     Next i
-    Set obj = ThisDrawing.ModelSpace.InsertBlock(point, name, scale, scale, scale, 0#)
+    Set obj = ThisDrawing.ModelSpace.InsertBlock(point, name, blockScale, blockScale, blockScale, 0#)
     actualScale = obj.XScaleFactor
     If actualScale <= 0# Then Err.Raise vbObjectError + 424, , "Invalid inserted block scale."
-    If Abs(actualScale - scale) > 0.000000001 Then obj.ScaleEntity point, scale / actualScale
-    If Abs(obj.XScaleFactor - scale) > 0.00000001 Or _
-       Abs(obj.YScaleFactor - scale) > 0.00000001 Or _
-       Abs(obj.ZScaleFactor - scale) > 0.00000001 Then
+    If Abs(actualScale - blockScale) > 0.000000001 Then obj.ScaleEntity point, blockScale / actualScale
+    If Abs(obj.XScaleFactor - blockScale) > 0.00000001 Or _
+       Abs(obj.YScaleFactor - blockScale) > 0.00000001 Or _
+       Abs(obj.ZScaleFactor - blockScale) > 0.00000001 Then
         Err.Raise vbObjectError + 425, , "Cannot normalize block reference scale."
     End If
     ApplyLayer obj, layer
@@ -105,27 +105,27 @@ Failed:
 End Function
 
 Public Function CSA_InsertElevation(ByVal point As Variant, ByVal value As String, _
-                                    Optional ByVal scale As Double = 0.25) As Object
+                                    Optional ByVal blockScale As Double = 0.25) As Object
     Set CSA_InsertElevation = CSA_InsertTaggedBlock("Cao do", "11-GB-Cao Do", _
-        point, scale, Array("%%P0.000"), Array(value))
+        point, blockScale, Array("%%P0.000"), Array(value))
 End Function
 
 Public Function CSA_InsertSectionSymbol(ByVal point As Variant, ByVal value As String, _
-                                        Optional ByVal scale As Double = 0.01) As Object
+                                        Optional ByVal blockScale As Double = 0.01) As Object
     Set CSA_InsertSectionSymbol = CSA_InsertTaggedBlock("Daucat", "12-GB-Ky Hieu", _
-        point, scale, Array("A"), Array(value))
+        point, blockScale, Array("A"), Array(value))
 End Function
 
 Public Function CSA_InsertBarNote(ByVal point As Variant, ByVal mark As String, _
-    ByVal diameterSpacing As String, Optional ByVal scale As Double = 1#) As Object
+    ByVal diameterSpacing As String, Optional ByVal blockScale As Double = 1#) As Object
     Set CSA_InsertBarNote = CSA_InsertTaggedBlock("CSA_Sohieu-KCthep", "20-GB-GC", _
-        point, scale, Array("SH", "DK-KC"), Array(mark, diameterSpacing))
+        point, blockScale, Array("SH", "DK-KC"), Array(mark, diameterSpacing))
 End Function
 
 Public Function CSA_InsertBarMark(ByVal point As Variant, ByVal mark As String, _
-                                  Optional ByVal scale As Double = 0.35) As Object
+                                  Optional ByVal blockScale As Double = 0.35) As Object
     Set CSA_InsertBarMark = CSA_InsertTaggedBlock("So hieu thep", "20-GB-GC", _
-        point, scale, Array("A"), Array(mark))
+        point, blockScale, Array("A"), Array(mark))
 End Function
 
 Public Function CSA_AddAlignedDimension(ByVal first As Variant, ByVal last As Variant, _
