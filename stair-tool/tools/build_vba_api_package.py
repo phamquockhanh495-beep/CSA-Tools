@@ -37,6 +37,7 @@ UI_FILES = (
     ('ui', 'frmCSAStair.code.bas'),
     ('ui', 'frmCSAStair.layout.md'),
     ('vba', 'API-COMPATIBILITY.md'),
+    ('tools', 'Update_CSA_Staicase_DVB.vbs'),
 )
 
 
@@ -44,8 +45,8 @@ def _write_bundle(target: Path, entries) -> Path:
     with ZipFile(target, 'w', compression=ZIP_DEFLATED) as archive:
         for folder, name in entries:
             source = (ROOT / folder / name).read_text(encoding='utf-8')
-            is_vba = name.endswith(('.bas', '.cls'))
-            # Portable ASCII-safe VBA exports with Windows CRLF for VBAIDE import.
+            is_vba = name.endswith(('.bas', '.cls', '.vbs'))
+            # Portable ASCII-safe VBA/VBS exports with Windows CRLF.
             payload = (source.replace('\r\n', '\n').replace('\n', '\r\n').encode('ascii')
                        if is_vba else source.encode('utf-8'))
             info = ZipInfo(name, (2026, 11, 24, 0, 0, 0))
