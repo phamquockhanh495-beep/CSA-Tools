@@ -24,33 +24,36 @@ This milestone uses the existing section coordinates in `Cau Thang Tools`. Plan 
 
 The MVP targets a two-flight U-shaped stair and uses AutoCAD layer `CSA-PREVIEW` for disposable geometry. The same coordinate builder is used for preview and final drawing so the preview is a faithful check of the geometry that will be committed.
 
-## AutoCAD 2018–2026 VBA API foundation
+## AutoCAD 2018–2027 VBA API & UserForm foundation
 
-AutoCAD 2022 is the primary acceptance target. The source targets full AutoCAD
+AutoCAD 2022 is the primary acceptance baseline across all **10 target releases
+(AutoCAD 2018–2027, including `ACADVER` 26.0)**. The source targets full AutoCAD
 for Windows x64 with the version-matched VBA Enabler. Read
-[`vba/API-COMPATIBILITY.md`](vba/API-COMPATIBILITY.md) for the nine-release matrix,
-import instructions, limitations and native smoke tests. This adds host guards
-to the existing VBA prototype; it does not port the v5.6 Lisp engine or build the
-proposed interactive UserForm. Native compile/runtime acceptance is pending for
-all nine releases.
+[`vba/API-COMPATIBILITY.md`](vba/API-COMPATIBILITY.md) for the ten-release matrix,
+import instructions, limitations and native smoke tests. Native compile/runtime
+acceptance is pending on Windows for all ten releases.
 
-Download the [API diagnostic source package](tools/CSA_Stair_VBA_API_2018-2026.zip).
-For an isolated first check, import only `modCSAStairHost.bas`,
-`modCSAStairWinApi.bas` and `modCSAStairApiTests.bas` into a separate VBA project.
-Run `CSA_CheckCompatibility`, `CSA_TestVersionMapping`, then
-`CSA_TestActiveXApi`. The last macro creates and closes an unsaved test drawing.
+- Download the [API diagnostic source package](tools/CSA_Stair_VBA_API_2018-2027.zip)
+  for an isolated host + ActiveX + GDI check (`modCSAStairHost.bas`,
+  `modCSAStairWinApi.bas`, `modCSAStairApiTests.bas`). Run
+  `CSA_CheckCompatibility`, `CSA_TestVersionMapping`, `CSA_TestFormPreviewApi`,
+  then `CSA_TestActiveXApi`.
+- Download the [complete VBA UserForm package](tools/CSA_Stair_VBA_UI_2018-2027.zip)
+  (all `.bas`/`.cls` normalized to Windows CRLF) for the programmatic `frmCSAStair`
+  UI matching `docs/CSA-Stair-Drawing-UI-Mockup.png`, manual Plan View inputs,
+  native file picker and live 2D Win32 GDI previews.
 
 ## Import order in AutoCAD VBA
 
-0. Import `vba/modCSAStairHost.bas` (required by the current prototype and native adapter).
+0. Import `vba/modCSAStairHost.bas` and `vba/modCSAStairWinApi.bas`.
 1. Import `vba/modCSAStairTypes.bas`.
 2. Import `vba/modCSAStairLayers.bas`.
-3. Import `vba/modCSAStairGeometry.bas`.
+3. Import `vba/modCSAStairGeometry.bas` and `vba/modCSAStairFormPreview.bas`.
 4. Import `vba/modCSAStairExcel.bas`.
-5. Import `vba/modCSAStairLegacy.bas` when using the workbook currently in this repository.
-6. Import `vba/modCSAStairPreview.bas`.
-7. Import `vba/modCSAStairMain.bas`.
-8. Add the controls described in `ui/frmCSAStair.layout.md` and paste `ui/frmCSAStair.code.bas` into the form code module.
+5. Import `vba/modCSAStairLegacy.bas` and `vba/modCSAStairAdapter.bas`.
+6. Import `vba/modCSAStairPreview.bas` and `vba/modCSAStairMain.bas`.
+7. Import class modules `ui/clsCSAStairFieldWatcher.cls` and `ui/clsCSAStairFormController.cls`.
+8. Insert a blank UserForm named `frmCSAStair` and paste `ui/frmCSAStair.code.bas` (see `ui/frmCSAStair.layout.md` — no manual control dragging or `.frx` needed).
 
 If the target CSA project already contains `modCSATheme` and its button class, uncomment `ApplyCSAThemeEx Me, "Stair Drawing", "CSA TOOLS  |  STAIR DRAWING"` at the end of `UserForm_Initialize`. Keep that call commented for projects without the theme dependency.
 
@@ -58,18 +61,18 @@ For the workbook currently in the repository, run `CSA_PreviewCurrentWorkbook`. 
 
 ## Current scope
 
-- two-flight U-shaped geometry;
-- section and plan preview on `CSA-PREVIEW`;
-- named Excel inputs with safe defaults;
+- one-, two- and three-flight stair parameters with manual Plan View inputs in `frmCSAStair`;
+- live 2D Win32 GDI preview inside `frmCSAStair` (`Section View` / `Plan View`) plus CAD viewport preview on `CSA-PREVIEW`;
+- Excel loader reading `Cau Thang Tools` (attaching to an open Excel session first);
 - adapter for the current `3-SIDES` -> `Cau Thang Tools` workbook output (`BY/BZ/CA`);
 - explicit cleanup before each preview and before final drawing;
-- reinforcement follows the confirmed Excel/drafting rules; the tool does not calculate reinforcement design or a fabrication schedule.
+- full concrete/rebar v5.6 engine port to VBA is scheduled for the next phases; Lisp v5.6 remains the runnable reference.
 
-The modules are source artifacts. Building a binary `.dvb` with a UserForm still requires AutoCAD VBA on Windows.
+The modules are source artifacts. Building a binary `.dvb` still requires AutoCAD VBA on Windows.
 
 ## One-file compatibility route
 
-`CSA_StairCase_Compat.bas` is a single standard module with no UDT declarations. Import this one file into a blank DVB or an existing CSA project when the host reports `User-defined type not defined`. It provides `CSA_PreviewCurrentWorkbook`, `CSA_CleanPreviewCommand`, and `CSA_STAIRDRAW` without requiring the other MVP modules.
+`CSA_StairCase_Compat.bas` is a single standard module with no UDT declarations. Its public macros use the `CSA_Compat_` prefix (`CSA_Compat_PreviewCurrentWorkbook`, `CSA_Compat_CleanPreview`, `CSA_Compat_StairDraw`) so it can coexist in the same project without name collisions.
 
 ## CSA native standards acceptance
 

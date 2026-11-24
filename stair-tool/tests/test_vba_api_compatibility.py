@@ -5,17 +5,22 @@ These tests do not emulate VBA or certify any AutoCAD release.
 import re
 import unittest
 from pathlib import Path
+from zipfile import ZipFile
 
-VBA = Path(__file__).resolve().parents[1] / 'vba'
+ROOT = Path(__file__).resolve().parents[1]
+VBA = ROOT / 'vba'
+UI = ROOT / 'ui'
+TOOLS = ROOT / 'tools'
 
 
 class VbaApiCompatibilityTests(unittest.TestCase):
-    def test_release_contract_has_exact_nine_targets_and_primary_2022(self):
+    def test_release_contract_has_exact_ten_targets_2018_to_2027_and_primary_2022(self):
         source = (VBA / 'modCSAStairHost.bas').read_text()
         pairs = re.findall(r'Case "([0-9.]+)": CSA_AcadReleaseYear = (\d+)', source)
         expected = [('22.0', '2018'), ('23.0', '2019'), ('23.1', '2020'),
                     ('24.0', '2021'), ('24.1', '2022'), ('24.2', '2023'),
-                    ('24.3', '2024'), ('25.0', '2025'), ('25.1', '2026')]
+                    ('24.3', '2024'), ('25.0', '2025'), ('25.1', '2026'),
+                    ('26.0', '2027')]
         self.assertEqual(pairs, expected)
         self.assertIn('CSA_PRIMARY_CAD_YEAR As Long = 2022', source)
         # Split("") produces an empty array in VBA: guard before UBound.
@@ -34,30 +39,45 @@ class VbaApiCompatibilityTests(unittest.TestCase):
     def test_pointer_width_and_gdi_resource_lifetime(self):
         source = (VBA / 'modCSAStairWinApi.bas').read_text()
         vba7 = source.split('#If VBA7 Then', 1)[1].split('#Else', 1)[0]
-        self.assertEqual(vba7.count('Declare PtrSafe'), 3)
+        declares = re.findall(r'Private Declare PtrSafe Function \w+', vba7)
+        self.assertGreaterEqual(len(declares), 19)
         self.assertRegex(vba7, r'GetDC.*ByVal hwnd As LongPtr\) As LongPtr')
         self.assertRegex(vba7, r'ReleaseDC.*hwnd As LongPtr.*hdc As LongPtr\) As Long')
         self.assertRegex(vba7, r'GetDeviceCaps.*hdc As LongPtr.*index As Long\) As Long')
-        body = source.split('Public Function CSA_SystemDpiX', 1)[1]
+        self.assertRegex(vba7, r'GetOpenFileNameW.*CSA_OpenFileNameW\) As Long')
+        self.assertRegex(vba7, r'OleCreatePictureIndirect.*CSA_PictDescBmp.*CSA_Guid.*ByVal fOwn As Long.*lplpvObj As Object\) As Long')
+        # Ensure all VBA7 declares use PtrSafe
+        self.assertNotRegex(vba7, r'Declare\s+Function')
+        body = source.split('Public Function CSA_SystemDpiX', 1)[1].split('Public Function CSA_PixelsToFormPoints', 1)[0]
         success, failure = body.split('Failed:', 1)
         self.assertIn('ReleaseDC 0, hdc', success)
         self.assertIn('If hdc <> 0 Then ReleaseDC 0, hdc', failure)
+        # Ensure GDI cleanup releases DCs and deletes bitmaps on discard / failure
+        discard = source.split('Public Sub CSA_DiscardCanvas', 1)[1].split('End Sub', 1)[0]
+        self.assertIn('DeleteObject canvas.hBitmap', discard)
+        self.assertIn('DeleteDC canvas.memDC', discard)
+        end_pic = source.split('Public Function CSA_EndCanvasToPicture', 1)[1].split('End Function', 1)[0]
+        self.assertIn('If bmp <> 0 Then DeleteObject bmp', end_pic)
 
     def test_api_smoke_writes_only_to_disposable_document(self):
         source = (VBA / 'modCSAStairApiTests.bas').read_text()
-        self.assertIn('Set original = CSA_CadDocument()', source)
-        self.assertIn('Set app = original.Application', source)
-        self.assertIn('Set testDoc = app.Documents.Add', source)
-        self.assertIn('Set space = testDoc.ModelSpace', source)
-        self.assertNotRegex(source, r'original\.(?:Close|Save|SetVariable|ModelSpace|Layers|Blocks)')
-        self.assertNotRegex(source, r'\b(?:SaveAs|SendCommand)\b')
-        success, failure = source.split('Failed:', 1)
+        self.assertIn('"26.0"', source)
+        self.assertIn('2027', source)
+        self.assertIn('Public Sub CSA_TestFormPreviewApi()', source)
+        active_x = source.split('Public Sub CSA_TestActiveXApi()', 1)[1].split('Public Sub CSA_TestFormPreviewApi()', 1)[0]
+        self.assertIn('Set original = CSA_CadDocument()', active_x)
+        self.assertIn('Set app = original.Application', active_x)
+        self.assertIn('Set testDoc = app.Documents.Add', active_x)
+        self.assertIn('Set space = testDoc.ModelSpace', active_x)
+        self.assertNotRegex(active_x, r'original\.(?:Close|Save|SetVariable|ModelSpace|Layers|Blocks)')
+        self.assertNotRegex(active_x, r'\b(?:SaveAs|SendCommand)\b')
+        success, failure = active_x.split('Failed:', 1)
         for branch in (success, failure):
             self.assertIn('testDoc.Close False', branch)
             self.assertIn('original.Activate', branch)
         for api in ('AddLightWeightPolyline', 'AddDimAligned', 'GetBoundingBox',
                     'InsertBlock', 'GetAttributes', 'SetXData', 'GetXData'):
-            self.assertIn(api, source)
+            self.assertIn(api, active_x)
 
     def test_host_guards_run_before_form_and_drawing_mutations(self):
         main = (VBA / 'modCSAStairMain.bas').read_text()
@@ -71,6 +91,50 @@ class VbaApiCompatibilityTests(unittest.TestCase):
                                ('CSA_AddAlignedDimension', '.AddDimAligned')]:
             body = adapter.split('Public Function ' + proc, 1)[1].split('End Function', 1)[0]
             self.assertLess(body.index('CSA_RequireSupportedHost'), body.index(mutation))
+
+    def test_no_public_macro_collisions_with_compat_module(self):
+        compat = (ROOT / 'CSA_StairCase_Compat.bas').read_text()
+        compat_pubs = set(re.findall(r'^Public (?:Sub|Function) (\w+)', compat, re.M))
+        project_pubs = set()
+        for bas in VBA.glob('*.bas'):
+            project_pubs.update(re.findall(r'^Public (?:Sub|Function) (\w+)', bas.read_text(), re.M))
+        self.assertEqual(compat_pubs & project_pubs, set())
+
+    def test_programmatic_userform_classes_and_ascii_safety(self):
+        for path in list(VBA.glob('*.bas')) + list(UI.glob('*.cls')) + [UI / 'frmCSAStair.code.bas']:
+            raw = path.read_text(encoding='utf-8')
+            raw.encode('ascii')  # Must stay pure ASCII for VBAIDE across Windows locales.
+        ctrl = (UI / 'clsCSAStairFormController.cls').read_text()
+        watcher = (UI / 'clsCSAStairFieldWatcher.cls').read_text()
+        form_code = (UI / 'frmCSAStair.code.bas').read_text()
+        self.assertIn('Attribute VB_Name = "clsCSAStairFormController"', ctrl)
+        self.assertIn('Attribute VB_Name = "clsCSAStairFieldWatcher"', watcher)
+        self.assertIn('clsCSAStairFormController', form_code)
+        # Mockup + manual plan controls all present
+        for name in ('txtStairName', 'cboStairType', 'txtWidth', 'txtBottomElev', 'txtTopElev',
+                     'txtRiser', 'txtTread', 'txtSlab', 'cboScale',
+                     'txtFlight1', 'txtFlight2', 'txtFlight3', 'txtLanding', 'txtUpperLanding',
+                     'txtWellGap', 'txtSupportWidth', 'cboDirection', 'txtSectionMark',
+                     'cboDimStyle', 'txtX', 'txtY', 'cmdPickPoint',
+                     'imgSectionPreview', 'imgPlanPreview', 'lblSummary',
+                     'chkDimensions', 'chkRebar', 'chkCreateLayers', 'chkOpenExcel',
+                     'cmdLoadExcel', 'cmdPreview', 'cmdDrawSection', 'cmdDrawPlan',
+                     'cmdClear', 'cmdCancel'):
+            self.assertIn(name, ctrl)
+        self.assertIn('CSA_PickExcelFile', ctrl)
+        self.assertIn('CSA_RenderSectionBitmap', ctrl)
+        self.assertIn('CSA_RenderPlanBitmap', ctrl)
+
+    def test_vba_packages_have_crlf_line_endings(self):
+        for zip_name in ('CSA_Stair_VBA_API_2018-2027.zip', 'CSA_Stair_VBA_UI_2018-2027.zip'):
+            path = TOOLS / zip_name
+            self.assertTrue(path.exists(), f'Missing package: {zip_name}')
+            with ZipFile(path) as zf:
+                for member in zf.namelist():
+                    if member.endswith(('.bas', '.cls')):
+                        raw = zf.read(member)
+                        self.assertIn(b'\r\n', raw, member)
+                        self.assertNotIn(b'\n', raw.replace(b'\r\n', b''), member)
 
 
 if __name__ == '__main__':

@@ -9,7 +9,10 @@ Private Const LAYER_PREVIEW As String = "CSA-PREVIEW"
 Private Const LAYER_CONCRETE As String = "21-GB-BD"
 Private Const PREVIEW_APP As String = "CSA_STAIR_PREVIEW"
 
-Public Sub CSA_PreviewCurrentWorkbook()
+' NOTE: Public macros use the CSA_Compat_ prefix so this legacy single-file
+' module can coexist with the multi-module VBA project without name collisions.
+
+Public Sub CSA_Compat_PreviewCurrentWorkbook()
     Dim filePath As String, message As String
     Dim xs() As Double, ys() As Double, count As Long
     filePath = InputBox("Enter the Excel file path or its folder:" & vbCrLf & "Example: C:\CSA Tools\CSA_Worksheet\CSA_Stair Drawing Tools.xlsm", "CSA Stair Drawing")
@@ -27,12 +30,12 @@ Public Sub CSA_PreviewCurrentWorkbook()
     MsgBox CStr(count) & " points previewed on " & LAYER_PREVIEW & ".", vbInformation, "CSA Stair Drawing"
 End Sub
 
-Public Sub CSA_CleanPreviewCommand()
+Public Sub CSA_Compat_CleanPreview()
     ClearLayer LAYER_PREVIEW
     ThisDrawing.Regen 0
 End Sub
 
-Public Sub CSA_DrawTwoFlightPreview()
+Public Sub CSA_Compat_DrawTwoFlightPreview()
     Dim floorHeight As Double, riser As Double, tread As Double
     Dim width As Double, landing As Double, insertX As Double, insertY As Double
     Dim count1 As Long, count2 As Long
@@ -65,8 +68,8 @@ Public Sub CSA_DrawTwoFlightPreview()
     ThisDrawing.Application.ZoomExtents
 End Sub
 
-Public Sub CSA_STAIRDRAW()
-    CSA_DrawTwoFlightPreview
+Public Sub CSA_Compat_StairDraw()
+    CSA_Compat_DrawTwoFlightPreview
 End Sub
 
 Private Function ReadLegacyCoordinates(ByVal filePath As String, ByRef xs() As Double, ByRef ys() As Double, ByRef count As Long, ByRef message As String) As Boolean

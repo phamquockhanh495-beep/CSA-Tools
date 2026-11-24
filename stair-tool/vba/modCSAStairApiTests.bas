@@ -8,16 +8,16 @@ End Sub
 
 Public Sub CSA_TestVersionMapping()
     Dim versions As Variant, years As Variant, i As Long, value As Variant
-    versions = Array("22.0", "23.0", "23.1", "24.0", "24.1", "24.2", "24.3", "25.0", "25.1")
-    years = Array(2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026)
+    versions = Array("22.0", "23.0", "23.1", "24.0", "24.1", "24.2", "24.3", "25.0", "25.1", "26.0")
+    years = Array(2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027)
     For i = 0 To UBound(versions)
         Require CSA_AcadReleaseYear(CStr(versions(i)) & "s (LMS Tech)") = CLng(years(i)), "Release mapping mismatch."
         Require CSA_AcadReleaseYear(" " & CStr(versions(i)) & ".1000 ") = CLng(years(i)), "Patch mapping mismatch."
     Next i
-    For Each value In Array("", "24", "24.10", "25.2", "21.0", "AutoCAD 2022", "x24.1")
+    For Each value In Array("", "24", "24.10", "25.2", "26.1", "21.0", "AutoCAD 2022", "x24.1")
         Require CSA_AcadReleaseYear(CStr(value)) = 0, "Unknown release accepted: " & CStr(value)
     Next value
-    MsgBox "Version mapping tests passed. This does not certify AutoCAD runtime compatibility.", vbInformation, "CSA API test"
+    MsgBox "Version mapping tests passed (2018-2027). This does not certify AutoCAD runtime compatibility.", vbInformation, "CSA API test"
 End Sub
 
 Public Sub CSA_TestActiveXApi()
@@ -99,4 +99,31 @@ Failed:
     If Not original Is Nothing Then original.Activate
     On Error GoTo 0
     MsgBox "Failed at " & stage & " (" & CStr(errorNumber) & "): " & errorText & closeError, vbExclamation, "CSA API test"
+End Sub
+
+Public Sub CSA_TestFormPreviewApi()
+    ' Verifies Win32 GDI offscreen bitmap + OleCreatePictureIndirect without modifying any DWG.
+    Dim canvas As CSA_GdiCanvas
+    Dim pic As Object
+    Dim dpi As Double, px As Long
+    On Error GoTo Failed
+    dpi = CSA_SystemDpiX()
+    Require dpi > 0#, "System DPI must be positive."
+    px = CSA_FormPointsToPixels(100#)
+    Require px > 0, "Points-to-pixels conversion must be positive."
+    Require CSA_BeginCanvas(240, 160, canvas), "Failed to start GDI canvas."
+    CSA_CanvasFillRect canvas, 0, 0, 240, 160, RGB(255, 255, 255)
+    CSA_CanvasRect canvas, 10, 10, 230, 150, RGB(27, 73, 130), 2
+    CSA_CanvasLine canvas, 20, 130, 220, 30, RGB(200, 30, 30), 2
+    CSA_CanvasCircle canvas, 120, 80, 12, RGB(27, 73, 130), RGB(230, 240, 255)
+    CSA_CanvasText canvas, 120, 16, "CSA GDI OK", RGB(27, 73, 130), 14, True, CSA_ALIGN_CENTER
+    Set pic = CSA_EndCanvasToPicture(canvas)
+    Require Not pic Is Nothing, "OleCreatePictureIndirect returned Nothing."
+    Require pic.Width > 0 And pic.Height > 0, "Generated IPictureDisp has empty dimensions."
+    Set pic = Nothing
+    MsgBox "Form GDI preview API test passed (DPI=" & CStr(dpi) & ").", vbInformation, "CSA API test"
+    Exit Sub
+Failed:
+    CSA_DiscardCanvas canvas
+    MsgBox "Form GDI preview API test failed (" & CStr(Err.Number) & "): " & Err.Description, vbExclamation, "CSA API test"
 End Sub

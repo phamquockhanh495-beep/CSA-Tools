@@ -3,7 +3,7 @@ Option Explicit
 
 ' Native CSA resources from csa-profile.json; no dependency on Excel or UDTs.
 ' Existing definitions are never recreated or restyled.
-' Import modCSAStairHost for the AutoCAD 2018-2026 x64 preflight.
+' Import modCSAStairHost for the AutoCAD 2018-2027 x64 preflight.
 
 Public Function CSA_MissingStandards() As String
     Dim names As Variant, name As Variant, obj As Object, missing As String

@@ -1,7 +1,7 @@
 Attribute VB_Name = "modCSAStairHost"
 Option Explicit
 
-' Shared source target: full AutoCAD for Windows x64, releases 2018-2026.
+' Shared source target: full AutoCAD for Windows x64, releases 2018-2027.
 ' No external AutoCAD.Application ProgID: always use the hosting VBA session.
 Public Const CSA_PRIMARY_CAD_YEAR As Long = 2022
 Public Const CSA_AC_ACTIVE_VIEWPORT As Long = 0
@@ -31,6 +31,7 @@ Public Function CSA_AcadReleaseYear(ByVal acadVersion As String) As Long
         Case "24.3": CSA_AcadReleaseYear = 2024
         Case "25.0": CSA_AcadReleaseYear = 2025
         Case "25.1": CSA_AcadReleaseYear = 2026
+        Case "26.0": CSA_AcadReleaseYear = 2027
     End Select
 End Function
 
@@ -56,7 +57,7 @@ Public Function CSA_HostProblem(ByVal document As Object) As String
     value = document.GetVariable("ACADVER")
     release = CSA_AcadReleaseYear(CStr(value))
     If release = 0 Then
-        CSA_HostProblem = "Unsupported ACADVER: " & CStr(value) & ". Target range is AutoCAD 2018-2026."
+        CSA_HostProblem = "Unsupported ACADVER: " & CStr(value) & ". Target range is AutoCAD 2018-2027."
         Exit Function
     End If
     Set space = document.ModelSpace
