@@ -6,7 +6,7 @@ Option Explicit
 ' in the earlier multi-module prototype; AutoCAD VBA itself supports UDTs.
 
 Private Const LAYER_PREVIEW As String = "CSA-PREVIEW"
-Private Const LAYER_CONCRETE As String = "21-GB-BD"
+Private Const LAYER_CONCRETE As String = "21-CSA-BD"
 Private Const PREVIEW_APP As String = "CSA_STAIR_PREVIEW"
 
 ' NOTE: Public macros use the CSA_Compat_ prefix so this legacy single-file

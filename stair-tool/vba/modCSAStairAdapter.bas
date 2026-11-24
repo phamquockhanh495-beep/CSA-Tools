@@ -1,15 +1,15 @@
 Attribute VB_Name = "modCSAStairAdapter"
 Option Explicit
 
-' Native CSA resources from csa-profile.json; no dependency on Excel or UDTs.
+' Native CSA resources (CSA layer naming); no dependency on Excel or UDTs.
 ' Existing definitions are never recreated or restyled.
 ' Import modCSAStairHost for the AutoCAD 2018-2027 x64 preflight.
 
 Public Function CSA_MissingStandards() As String
     Dim names As Variant, name As Variant, obj As Object, missing As String
     CSA_RequireSupportedHost
-    names = Array("06-GB-Slab-bor", "21-GB-BD", "04-GB-Dim", "10-GB-Text", _
-                  "11-GB-Cao Do", "12-GB-Ky Hieu", "18-GB-Reinf", "20-GB-GC")
+    names = Array("06-CSA-Slab-bor", "21-CSA-BD", "04-CSA-Dim", "10-CSA-Text", _
+                  "11-CSA-Cao Do", "12-CSA-Ky hieu", "18-CSA-Reinf", "20-CSA-GC")
     For Each name In names
         Set obj = Nothing
         On Error Resume Next
@@ -24,14 +24,6 @@ Public Function CSA_MissingStandards() As String
         Set obj = ThisDrawing.Blocks.Item(CStr(name))
         On Error GoTo 0
         If obj Is Nothing Then missing = missing & vbCrLf & "Block: " & CStr(name)
-    Next name
-    names = Array("01-GB-Arial", "02-GB-VNI-Helve")
-    For Each name In names
-        Set obj = Nothing
-        On Error Resume Next
-        Set obj = ThisDrawing.TextStyles.Item(CStr(name))
-        On Error GoTo 0
-        If obj Is Nothing Then missing = missing & vbCrLf & "TextStyle: " & CStr(name)
     Next name
     CSA_MissingStandards = missing
 End Function
@@ -106,25 +98,25 @@ End Function
 
 Public Function CSA_InsertElevation(ByVal point As Variant, ByVal value As String, _
                                     Optional ByVal blockScale As Double = 0.25) As Object
-    Set CSA_InsertElevation = CSA_InsertTaggedBlock("Cao do", "11-GB-Cao Do", _
+    Set CSA_InsertElevation = CSA_InsertTaggedBlock("Cao do", "11-CSA-Cao Do", _
         point, blockScale, Array("%%P0.000"), Array(value))
 End Function
 
 Public Function CSA_InsertSectionSymbol(ByVal point As Variant, ByVal value As String, _
                                         Optional ByVal blockScale As Double = 0.01) As Object
-    Set CSA_InsertSectionSymbol = CSA_InsertTaggedBlock("Daucat", "12-GB-Ky Hieu", _
+    Set CSA_InsertSectionSymbol = CSA_InsertTaggedBlock("Daucat", "12-CSA-Ky hieu", _
         point, blockScale, Array("A"), Array(value))
 End Function
 
 Public Function CSA_InsertBarNote(ByVal point As Variant, ByVal mark As String, _
     ByVal diameterSpacing As String, Optional ByVal blockScale As Double = 1#) As Object
-    Set CSA_InsertBarNote = CSA_InsertTaggedBlock("CSA_Sohieu-KCthep", "20-GB-GC", _
+    Set CSA_InsertBarNote = CSA_InsertTaggedBlock("CSA_Sohieu-KCthep", "20-CSA-GC", _
         point, blockScale, Array("SH", "DK-KC"), Array(mark, diameterSpacing))
 End Function
 
 Public Function CSA_InsertBarMark(ByVal point As Variant, ByVal mark As String, _
                                   Optional ByVal blockScale As Double = 0.35) As Object
-    Set CSA_InsertBarMark = CSA_InsertTaggedBlock("So hieu thep", "20-GB-GC", _
+    Set CSA_InsertBarMark = CSA_InsertTaggedBlock("So hieu thep", "20-CSA-GC", _
         point, blockScale, Array("A"), Array(mark))
 End Function
 
@@ -134,10 +126,10 @@ Public Function CSA_AddAlignedDimension(ByVal first As Variant, ByVal last As Va
     On Error GoTo Failed
     CSA_RequireSupportedHost
     Set style = ThisDrawing.DimStyles.Item(styleName)
-    RequireWritableLayer "04-GB-Dim"
+    RequireWritableLayer "04-CSA-Dim"
     Set obj = ThisDrawing.ModelSpace.AddDimAligned(first, last, location)
     obj.StyleName = style.Name
-    ApplyLayer obj, "04-GB-Dim"
+    ApplyLayer obj, "04-CSA-Dim"
     obj.Update
     Set CSA_AddAlignedDimension = obj
     Exit Function

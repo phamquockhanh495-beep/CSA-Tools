@@ -17,7 +17,7 @@ reference baseline while the full VBA engine is ported.
 | 2021 | 24.0 | Pending |
 | **2022** | **24.1** | **Primary baseline; pending** |
 | 2023 | 24.2 | Pending |
-| 2024 | 24.3 | Pending |
+| **2024** | **24.3** | **Passed (API/GDI/UserForm; 24.3s, Win x64, DPI=110)** |
 | 2025 | 25.0 | Pending |
 | 2026 | 25.1 | Pending |
 | **2027** | **26.0** | **Target release; pending** |

@@ -153,6 +153,42 @@ class VbaApiCompatibilityTests(unittest.TestCase):
                         f'Reserved VBA keyword "{kw}" used at {path.name}:{lineno}'
                     )
 
+    def test_vba_layers_migrated_from_gb_to_csa(self):
+        for path in (VBA / 'modCSAStairTypes.bas', VBA / 'modCSAStairAdapter.bas',
+                     VBA / 'modCSAStairPlanGeom.bas', VBA / 'modCSAStairPlanDraw.bas',
+                     ROOT / 'CSA_StairCase_Compat.bas'):
+            text = path.read_text()
+            self.assertNotRegex(text, r'"\d{2}-GB-[^"]+"', f'Legacy GB layer found in {path.name}')
+        types_src = (VBA / 'modCSAStairTypes.bas').read_text()
+        for expected in ('04-CSA-Dim', '05-CSA-Hatch', '06-CSA-Slab-bor', '10-CSA-Text',
+                         '11-CSA-Cao Do', '12-CSA-Ky hieu', '18-CSA-Reinf', '20-CSA-GC',
+                         '21-CSA-BD', '22-CSA-NC'):
+            self.assertIn(f'"{expected}"', types_src)
+
+    def test_bilingual_language_module_and_form_toggle(self):
+        lang_src = (VBA / 'modCSAStairLang.bas').read_text()
+        lang_src.encode('ascii')  # Must stay pure ASCII using ChrW$
+        en_block = lang_src.split('Private Function TranslateEn', 1)[1].split('End Function', 1)[0]
+        vi_block = lang_src.split('Private Function TranslateVi', 1)[1].split('End Function', 1)[0]
+        en_keys = set(re.findall(r'Case "([A-Z0-9_]+)":', en_block))
+        vi_keys = set(re.findall(r'Case "([A-Z0-9_]+)":', vi_block))
+        self.assertEqual(en_keys, vi_keys)
+        self.assertGreaterEqual(len(en_keys), 40)
+        ctrl_src = (UI / 'clsCSAStairFormController.cls').read_text()
+        self.assertIn('cboLanguage', ctrl_src)
+        self.assertIn('ApplyLanguage', ctrl_src)
+
+    def test_phase3_plan_engine_separation_and_host_guard(self):
+        geom = (VBA / 'modCSAStairPlanGeom.bas').read_text()
+        self.assertLess(geom.rindex('End Type'), geom.index('Public Sub CSA_BuildPlanModel'))
+        self.assertNotIn('ThisDrawing', geom)
+        self.assertNotIn('ModelSpace', geom)
+        draw = (VBA / 'modCSAStairPlanDraw.bas').read_text()
+        self.assertIn('Public Sub CSA_DrawPlanModel', draw)
+        self.assertLess(draw.index('CSA_HostReady()'), draw.index('CSA_BuildPlanModel'))
+        preview = (VBA / 'modCSAStairPreview.bas').read_text()
+        self.assertIn('CSA_DrawPlanModel', preview)
+
 
 if __name__ == '__main__':
     unittest.main()

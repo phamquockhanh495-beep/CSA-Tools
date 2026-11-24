@@ -64,7 +64,7 @@ Public Function CSA_RenderSectionBitmap(ByRef v As CSAStairInput, _
 
     mark = Trim$(v.SectionMark)
     If Len(mark) = 0 Then mark = "A"
-    DrawPanelTitle canvas, widthPx, "SECTION " & mark & " - " & mark
+    DrawPanelTitle canvas, widthPx, CSA_Tr("PV_SEC") & " " & mark & " - " & mark
 
     If Not CSA_ValidateInput(v, msg) Then
         CSA_CanvasText canvas, widthPx \ 2, heightPx \ 2 - 8, msg, CLR_REBAR, 13, True, CSA_ALIGN_CENTER
@@ -145,9 +145,9 @@ Public Function CSA_RenderSectionBitmap(ByRef v As CSAStairInput, _
         If v.StairType <> CSA_TYPE_SINGLE_FLIGHT Then
             x1 = CLng(ox + (totalW - supW) * scalePx) - 4
             y1 = CLng(oy - (v.Flight1Risers * v.Riser) * 0.5 * scalePx) - 6
-            CSA_CanvasText canvas, x1, y1, CStr(v.Flight1Risers) & " RISERS", CLR_DIM, 11, True, CSA_ALIGN_RIGHT
+            CSA_CanvasText canvas, x1, y1, CStr(v.Flight1Risers) & " " & CSA_Tr("PV_RISERS"), CLR_DIM, 11, True, CSA_ALIGN_RIGHT
             y2 = CLng(oy - (v.Flight1Risers * v.Riser + v.Flight2Risers * v.Riser * 0.5) * scalePx) - 6
-            CSA_CanvasText canvas, x1, y2, CStr(v.Flight2Risers) & " RISERS", CLR_DIM, 11, True, CSA_ALIGN_RIGHT
+            CSA_CanvasText canvas, x1, y2, CStr(v.Flight2Risers) & " " & CSA_Tr("PV_RISERS"), CLR_DIM, 11, True, CSA_ALIGN_RIGHT
         End If
     End If
 
@@ -163,17 +163,17 @@ Public Function CSA_RenderPlanBitmap(ByRef v As CSAStairInput, _
     Dim msg As String, mark As String
     Dim padL As Long, padR As Long, padT As Long, padB As Long
     Dim drawW As Double, drawH As Double
-    Dim run1 As Double, run2 As Double, maxRun As Double
+    Dim run1 As Double, run2 As Double, run3 As Double, maxRun As Double
     Dim supW As Double, landW As Double, uLandW As Double, gap As Double
     Dim totalW As Double, totalH As Double, scalePx As Double
     Dim ox As Double, oy As Double
-    Dim i As Long, xPx As Long, yTop As Long, yBot As Long
+    Dim i As Long, xPx As Long, yPx As Long, yTop As Long, yBot As Long
     Dim dir1 As String, dir2 As String
 
     On Error GoTo Failed
     CSA_BeginCanvas widthPx, heightPx, canvas
     DrawGridBackground canvas, widthPx, heightPx
-    DrawPanelTitle canvas, widthPx, "PLAN VIEW"
+    DrawPanelTitle canvas, widthPx, CSA_Tr("PV_PLAN")
 
     If Not CSA_ValidateInput(v, msg) Then
         CSA_CanvasText canvas, widthPx \ 2, heightPx \ 2 - 8, msg, CLR_REBAR, 13, True, CSA_ALIGN_CENTER
@@ -183,8 +183,11 @@ Public Function CSA_RenderPlanBitmap(ByRef v As CSAStairInput, _
 
     mark = Trim$(v.SectionMark)
     If Len(mark) = 0 Then mark = "A"
-    dir1 = IIf(UCase$(Trim$(v.StartDirection)) = "DN", "DN", "UP")
-    dir2 = IIf(dir1 = "UP", "DN", "UP")
+    If UCase$(Trim$(v.StartDirection)) = "DN" Then
+        dir1 = CSA_Tr("DIR_DN"): dir2 = CSA_Tr("DIR_UP")
+    Else
+        dir1 = CSA_Tr("DIR_UP"): dir2 = CSA_Tr("DIR_DN")
+    End If
 
     padL = 62: padR = 46: padT = 66: padB = 34
     drawW = widthPx - padL - padR
@@ -198,12 +201,19 @@ Public Function CSA_RenderPlanBitmap(ByRef v As CSAStairInput, _
     gap = v.WellGap
     run1 = v.Flight1Risers * v.Tread
     run2 = v.Flight2Risers * v.Tread
-    maxRun = IIf(run1 >= run2, run1, run2)
+    run3 = v.Flight3Risers * v.Tread
 
     If v.StairType = CSA_TYPE_SINGLE_FLIGHT Then
+        maxRun = run1
         totalW = supW + run1 + uLandW + supW
         totalH = v.Width
+    ElseIf v.StairType = CSA_TYPE_THREE_FLIGHT Then
+        maxRun = IIf(run1 >= run3, run1, run3)
+        If gap < run2 Then gap = run2
+        totalW = supW + uLandW + maxRun + landW + supW
+        totalH = 2# * v.Width + gap
     Else
+        maxRun = IIf(run1 >= run2, run1, run2)
         totalW = supW + uLandW + maxRun + landW + supW
         totalH = 2# * v.Width + gap
     End If
@@ -237,7 +247,7 @@ Public Function CSA_RenderPlanBitmap(ByRef v As CSAStairInput, _
         End If
         DrawArrowH canvas, CLng(fStart + 10), CLng(fStart + run1 * scalePx - 10), CLng(oy + v.Width * 0.5 * scalePx), True, dir1
     Else
-        Dim xU As Double, xF As Double, xL As Double
+        Dim xU As Double, xF As Double, xL As Double, topFlightCount As Long
         xU = ox + supW * scalePx
         xF = xU + uLandW * scalePx
         xL = xF + maxRun * scalePx
@@ -248,15 +258,32 @@ Public Function CSA_RenderPlanBitmap(ByRef v As CSAStairInput, _
                            CLR_CONCRETE, 2, CLR_FILL_LAND
         End If
 
-        ' Intermediate landing (right)
-        CSA_CanvasRect canvas, CLng(xL), CLng(oy), CLng(xL + landW * scalePx), CLng(oy + totalH * scalePx), _
-                       CLR_CONCRETE, 2, CLR_FILL_LAND
+        ' Right landing or Three-Flight landings + middle flight
+        If v.StairType = CSA_TYPE_THREE_FLIGHT Then
+            CSA_CanvasRect canvas, CLng(xL), CLng(oy), CLng(xL + landW * scalePx), CLng(oy + v.Width * scalePx), _
+                           CLR_CONCRETE, 2, CLR_FILL_LAND
+            CSA_CanvasRect canvas, CLng(xL), CLng(oy + v.Width * scalePx), CLng(xL + landW * scalePx), CLng(oy + (v.Width + gap) * scalePx), _
+                           CLR_CONCRETE, 2, CLR_BG
+            For i = 1 To v.Flight2Risers - 1
+                yPx = CLng(oy + v.Width * scalePx + i * v.Tread * scalePx)
+                If yPx < CLng(oy + (v.Width + gap) * scalePx) Then
+                    CSA_CanvasLine canvas, CLng(xL), yPx, CLng(xL + landW * scalePx), yPx, CLR_CONCRETE, 1
+                End If
+            Next i
+            CSA_CanvasRect canvas, CLng(xL), CLng(oy + (v.Width + gap) * scalePx), CLng(xL + landW * scalePx), CLng(oy + totalH * scalePx), _
+                           CLR_CONCRETE, 2, CLR_FILL_LAND
+            topFlightCount = v.Flight3Risers
+        Else
+            CSA_CanvasRect canvas, CLng(xL), CLng(oy), CLng(xL + landW * scalePx), CLng(oy + totalH * scalePx), _
+                           CLR_CONCRETE, 2, CLR_FILL_LAND
+            topFlightCount = v.Flight2Risers
+        End If
 
         ' Upper flight (top band in plan)
         yTop = CLng(oy)
         yBot = CLng(oy + v.Width * scalePx)
         CSA_CanvasRect canvas, CLng(xF), yTop, CLng(xL), yBot, CLR_CONCRETE, 2, CLR_BG
-        For i = 1 To v.Flight2Risers - 1
+        For i = 1 To topFlightCount - 1
             xPx = CLng(xF + i * v.Tread * scalePx)
             If xPx < CLng(xL) Then CSA_CanvasLine canvas, xPx, yTop, xPx, yBot, CLR_CONCRETE, 1
         Next i

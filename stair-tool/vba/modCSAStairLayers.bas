@@ -1,18 +1,43 @@
 Attribute VB_Name = "modCSAStairLayers"
 Option Explicit
 
-Public Sub CSA_EnsureLayer(ByVal layerName As String, ByVal colorIndex As Integer)
+Public Function CSA_DefaultLayerColor(ByVal layerName As String) As Integer
+    Select Case LCase$(layerName)
+        Case LCase$(CSA_LAYER_PREVIEW): CSA_DefaultLayerColor = 4
+        Case LCase$(CSA_LAYER_GRID): CSA_DefaultLayerColor = 8
+        Case LCase$(CSA_LAYER_DIM): CSA_DefaultLayerColor = 146
+        Case LCase$(CSA_LAYER_HATCH): CSA_DefaultLayerColor = 8
+        Case LCase$(CSA_LAYER_PLAN): CSA_DefaultLayerColor = 150
+        Case LCase$(CSA_LAYER_BEAM): CSA_DefaultLayerColor = 70
+        Case LCase$(CSA_LAYER_TEXT): CSA_DefaultLayerColor = 4
+        Case LCase$(CSA_LAYER_LEVEL): CSA_DefaultLayerColor = 7
+        Case LCase$(CSA_LAYER_SYMBOL): CSA_DefaultLayerColor = 232
+        Case LCase$(CSA_LAYER_REBAR): CSA_DefaultLayerColor = 10
+        Case LCase$(CSA_LAYER_TIE): CSA_DefaultLayerColor = 210
+        Case LCase$(CSA_LAYER_NOTE): CSA_DefaultLayerColor = 145
+        Case LCase$(CSA_LAYER_CONCRETE): CSA_DefaultLayerColor = 90
+        Case LCase$(CSA_LAYER_CUT): CSA_DefaultLayerColor = 8
+        Case Else: CSA_DefaultLayerColor = 7
+    End Select
+End Function
+
+Public Sub CSA_EnsureLayer(ByVal layerName As String, ByVal colorIndex As Integer, _
+                           Optional ByVal allowCreate As Boolean = False)
     Dim lyr As Object
     On Error Resume Next
     Set lyr = ThisDrawing.Layers.Item(layerName)
     On Error GoTo 0
     If lyr Is Nothing Then
-        If layerName <> CSA_LAYER_PREVIEW Then
+        If layerName <> CSA_LAYER_PREVIEW And Not allowCreate Then
             Err.Raise vbObjectError + 410, "CSA Stair", "Missing CSA layer: " & layerName
         End If
         Set lyr = ThisDrawing.Layers.Add(layerName)
-        lyr.color = colorIndex
-        lyr.Plottable = False
+        If colorIndex > 0 Then
+            lyr.color = colorIndex
+        Else
+            lyr.color = CSA_DefaultLayerColor(layerName)
+        End If
+        If layerName = CSA_LAYER_PREVIEW Then lyr.Plottable = False
     End If
     If lyr.Lock Or lyr.Freeze Or Not lyr.LayerOn Then
         Err.Raise vbObjectError + 411, "CSA Stair", "Layer off, frozen or locked: " & layerName
@@ -20,7 +45,7 @@ Public Sub CSA_EnsureLayer(ByVal layerName As String, ByVal colorIndex As Intege
 End Sub
 
 Public Sub CSA_EnsureLayers()
-    CSA_EnsureLayer CSA_LAYER_PREVIEW, 4
+    CSA_EnsureLayer CSA_LAYER_PREVIEW, 4, True
     ' Preview needs only one temporary layer. Existing CSA definitions stay intact.
 End Sub
 
@@ -57,7 +82,7 @@ Public Sub CSA_ClearPreview()
     For Each item In toDelete
         item.Delete
     Next item
-    ThisDrawing.Regen acActiveViewport
+    ThisDrawing.Regen CSA_AC_ACTIVE_VIEWPORT
 End Sub
 
 Public Sub CSA_CleanPreviewCommand()

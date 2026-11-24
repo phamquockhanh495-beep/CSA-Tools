@@ -7,15 +7,19 @@
 1. Import the standard `.bas` modules and `.cls` class modules in order:
    - `vba/modCSAStairHost.bas`
    - `vba/modCSAStairWinApi.bas`
+   - `vba/modCSAStairLang.bas`
    - `vba/modCSAStairTypes.bas`
    - `vba/modCSAStairLayers.bas`
    - `vba/modCSAStairGeometry.bas`
+   - `vba/modCSAStairPlanGeom.bas`
+   - `vba/modCSAStairPlanDraw.bas`
    - `vba/modCSAStairFormPreview.bas`
    - `vba/modCSAStairExcel.bas`
    - `vba/modCSAStairLegacy.bas`
    - `vba/modCSAStairAdapter.bas`
    - `vba/modCSAStairPreview.bas`
    - `vba/modCSAStairMain.bas`
+   - `vba/modCSAStairApiTests.bas`
    - `ui/clsCSAStairFieldWatcher.cls`
    - `ui/clsCSAStairFormController.cls`
 2. In VBAIDE, choose **Insert → UserForm**.

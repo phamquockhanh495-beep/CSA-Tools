@@ -19,9 +19,12 @@ API_FILES = (
 UI_FILES = (
     ('vba', 'modCSAStairHost.bas'),
     ('vba', 'modCSAStairWinApi.bas'),
+    ('vba', 'modCSAStairLang.bas'),
     ('vba', 'modCSAStairTypes.bas'),
     ('vba', 'modCSAStairLayers.bas'),
     ('vba', 'modCSAStairGeometry.bas'),
+    ('vba', 'modCSAStairPlanGeom.bas'),
+    ('vba', 'modCSAStairPlanDraw.bas'),
     ('vba', 'modCSAStairFormPreview.bas'),
     ('vba', 'modCSAStairExcel.bas'),
     ('vba', 'modCSAStairLegacy.bas'),

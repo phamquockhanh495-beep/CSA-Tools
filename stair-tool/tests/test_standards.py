@@ -101,10 +101,11 @@ class StandardsTests(unittest.TestCase):
     def test_vba_layer_constants_match_export(self):
         source = (TOOL / 'vba/modCSAStairTypes.bas').read_text()
         names = re.findall(r'Public Const CSA_LAYER_\w+ As String = "([^"]+)"', source)
-        available = {r['Name'] for r in self.exported('layers')}
+        available = {r['Name'].lower() for r in self.exported('layers')}
         for name in names:
             if name != 'CSA-PREVIEW':
-                self.assertIn(name, available)
+                self.assertIn('-CSA-', name)
+                self.assertIn(name.replace('-CSA-', '-GB-').lower(), available)
 
     def test_vba_declarations_precede_procedures(self):
         source = (TOOL / 'vba/modCSAStairTypes.bas').read_text()
