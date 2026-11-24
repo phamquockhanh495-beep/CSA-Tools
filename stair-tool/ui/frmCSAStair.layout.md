@@ -21,7 +21,9 @@
 2. In VBAIDE, choose **Insert → UserForm**.
 3. In the Properties window, change `(Name)` to **`frmCSAStair`**. Leave the form blank.
 4. Double-click the blank form, replace all code with [`ui/frmCSAStair.code.bas`](frmCSAStair.code.bas) (excluding the first `Attribute VB_Name` line).
-5. Run **Debug → Compile** (verify `Microsoft Forms 2.0 Object Library` and host AutoCAD references in **Tools → References**).
+5. Run **Debug → Compile**. If VBA reports `User-defined type not defined` on `MSForms.TextBox` and `Microsoft Forms 2.0 Object Library` is not visible in **Tools → References**:
+   - Click **Browse…** in **Tools → References** and open `C:\Program Files\Microsoft Office\Root\VFS\System\FM20.DLL` (Office x64 Click-to-Run) or `C:\Windows\System32\FM20.DLL`.
+   - Or open `frmCSAStair` in Design view, drop one temporary control from the Toolbox onto the form and delete it; VBA will bind `Microsoft Forms 2.0 Object Library` automatically.
 6. Run macro **`CSA_STAIRDRAW`** (or `CSA_StairTools`).
 
 ## Layout built at runtime (matches `docs/CSA-Stair-Drawing-UI-Mockup.png`)

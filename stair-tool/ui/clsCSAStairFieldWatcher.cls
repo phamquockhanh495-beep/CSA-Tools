@@ -13,10 +13,10 @@ Private WithEvents mBox As MSForms.TextBox
 Private mOwner As clsCSAStairFormController
 Private mKey As String
 
-Public Sub Bind(ByVal textBox As MSForms.TextBox, _
+Public Sub Bind(ByVal ctrlBox As MSForms.TextBox, _
                 ByVal owner As clsCSAStairFormController, _
                 ByVal fieldKey As String)
-    Set mBox = textBox
+    Set mBox = ctrlBox
     Set mOwner = owner
     mKey = fieldKey
 End Sub
