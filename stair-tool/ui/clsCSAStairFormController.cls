@@ -11,7 +11,8 @@ Option Explicit
 
 ' Programmatic MSForms controller for frmCSAStair.
 ' Builds all controls at runtime (zero binary .frx dependency) matching
-' docs/CSA-Stair-Drawing-UI-Mockup.png, with bilingual EN/VI toggle and manual Plan inputs.
+' docs/CSA-Stair-Drawing-UI-Mockup.png, with bilingual EN/VI toggle,
+' manual Plan & Rebar settings, and direct pick-point-and-draw workflow.
 
 Private Const CLR_NAVY As Long = &H82491B       ' #1B4982
 Private Const CLR_FORM_BG As Long = &HF8F5F2    ' Light neutral canvas
@@ -48,8 +49,6 @@ Private lblTread As MSForms.Label
 Private lblSlab As MSForms.Label
 Private lblScale As MSForms.Label
 Private lblFlight1 As MSForms.Label
-Private lblFlight2 As MSForms.Label
-Private lblFlight3 As MSForms.Label
 Private lblLanding As MSForms.Label
 Private lblUpperLanding As MSForms.Label
 Private lblWellGap As MSForms.Label
@@ -57,7 +56,10 @@ Private lblSupportWidth As MSForms.Label
 Private lblDirection As MSForms.Label
 Private lblSectionMark As MSForms.Label
 Private lblDimStyle As MSForms.Label
-Private lblInsertXY As MSForms.Label
+Private lblCover As MSForms.Label
+Private lblMainBar As MSForms.Label
+Private lblDistBar As MSForms.Label
+Private lblAnchorSym As MSForms.Label
 
 ' Parameter controls - General tab (mockup 1:1)
 Private txtStairName As MSForms.TextBox
@@ -70,7 +72,7 @@ Private txtTread As MSForms.TextBox
 Private txtSlab As MSForms.TextBox
 Private WithEvents cboScale As MSForms.ComboBox
 
-' Parameter controls - Plan & CAD tab (manual plan inputs)
+' Parameter controls - Details & Rebar tab (manual plan + rebar inputs, no X/Y boxes)
 Private txtFlight1 As MSForms.TextBox
 Private txtFlight2 As MSForms.TextBox
 Private txtFlight3 As MSForms.TextBox
@@ -81,9 +83,11 @@ Private txtSupportWidth As MSForms.TextBox
 Private WithEvents cboDirection As MSForms.ComboBox
 Private txtSectionMark As MSForms.TextBox
 Private WithEvents cboDimStyle As MSForms.ComboBox
-Private txtX As MSForms.TextBox
-Private txtY As MSForms.TextBox
-Private WithEvents cmdPickPoint As MSForms.CommandButton
+Private txtCover As MSForms.TextBox
+Private txtMainBar As MSForms.TextBox
+Private txtDistBar As MSForms.TextBox
+Private txtAnchorFactor As MSForms.TextBox
+Private WithEvents cboBarSymbol As MSForms.ComboBox
 
 ' Preview & status controls
 Private WithEvents mpgParams As MSForms.MultiPage
@@ -186,7 +190,7 @@ Private Sub BuildLayout()
     mpgParams.Left = 4: mpgParams.Top = 24: mpgParams.Width = 246: mpgParams.Height = 336
     mpgParams.Font.Name = "Segoe UI": mpgParams.Font.Size = 8.5
 
-    ' Page 0: General parameters (matching mockup 1:1, wider inputs so text never clips)
+    ' Page 0: General parameters (matching mockup 1:1)
     Set pageGen = mpgParams.Pages(0)
     rowY = 10: rowStep = 31
     Set txtStairName = AddLabeledText(pageGen, "Stair Name:", "txtStairName", rowY, 96, 134, "", "name", lblStairName)
@@ -211,14 +215,13 @@ Private Sub BuildLayout()
     cboScale.AddItem "1:75"
     cboScale.AddItem "1:100"
 
-    ' Page 1: Manual Plan View & CAD settings
+    ' Page 1: Manual Plan View & Rebar settings (direct viewport pick replaces X/Y boxes)
     Set pagePlan = mpgParams.Pages(1)
     rowY = 8: rowStep = 25
-    Set txtFlight1 = AddLabeledText(pagePlan, "Flight 1 Risers:", "txtFlight1", rowY, 108, 122, "", "flight", lblFlight1)
-    rowY = rowY + rowStep
-    Set txtFlight2 = AddLabeledText(pagePlan, "Flight 2 Risers:", "txtFlight2", rowY, 108, 122, "", "flight", lblFlight2)
-    rowY = rowY + rowStep
-    Set txtFlight3 = AddLabeledText(pagePlan, "Flight 3 Risers:", "txtFlight3", rowY, 108, 122, "", "flight", lblFlight3)
+    ' Compact 3-flight riser counts on one row
+    Set txtFlight1 = AddLabeledText(pagePlan, "Flights 1/2/3:", "txtFlight1", rowY, 102, 38, "", "flight", lblFlight1)
+    Set txtFlight2 = AddSmallText(pagePlan, "txtFlight2", 144, rowY, 38, "flight")
+    Set txtFlight3 = AddSmallText(pagePlan, "txtFlight3", 186, rowY, 44, "flight")
     rowY = rowY + rowStep
     Set txtLanding = AddLabeledText(pagePlan, "Mid Landing (mm):", "txtLanding", rowY, 108, 122, "", "plan", lblLanding)
     rowY = rowY + rowStep
@@ -236,12 +239,19 @@ Private Sub BuildLayout()
     rowY = rowY + rowStep
     Set cboDimStyle = AddLabeledCombo(pagePlan, "DimStyle:", "cboDimStyle", rowY, 108, 122, lblDimStyle)
     rowY = rowY + rowStep
-    Set txtX = AddLabeledText(pagePlan, "Insert X / Y:", "txtX", rowY, 78, 52, "", "pos", lblInsertXY)
-    Set txtY = pagePlan.Controls.Add("Forms.TextBox.1", "txtY", True)
-    txtY.Left = 134: txtY.Top = rowY: txtY.Width = 52: txtY.Height = 19
-    txtY.Font.Name = "Segoe UI": txtY.Font.Size = 8.5
-    WatchField txtY, "pos"
-    Set cmdPickPoint = AddButton(pagePlan, "cmdPickPoint", "Pick", 190, rowY, 42, 19, CLR_ACCENT_BTN)
+    Set txtCover = AddLabeledText(pagePlan, "Cover (mm):", "txtCover", rowY, 108, 122, "", "rebar", lblCover)
+    rowY = rowY + rowStep
+    Set txtMainBar = AddLabeledText(pagePlan, "Main Rebar:", "txtMainBar", rowY, 108, 122, "", "rebar", lblMainBar)
+    rowY = rowY + rowStep
+    Set txtDistBar = AddLabeledText(pagePlan, "Dist. Rebar:", "txtDistBar", rowY, 108, 122, "", "rebar", lblDistBar)
+    rowY = rowY + rowStep
+    Set txtAnchorFactor = AddLabeledText(pagePlan, "Anchor / Sym:", "txtAnchorFactor", rowY, 108, 54, "", "rebar", lblAnchorSym)
+    Set cboBarSymbol = pagePlan.Controls.Add("Forms.ComboBox.1", "cboBarSymbol", True)
+    cboBarSymbol.Left = 166: cboBarSymbol.Top = rowY: cboBarSymbol.Width = 64: cboBarSymbol.Height = 19
+    cboBarSymbol.Font.Name = "Segoe UI": cboBarSymbol.Font.Size = 8.5
+    cboBarSymbol.Style = 2
+    cboBarSymbol.AddItem "%%C"
+    cboBarSymbol.AddItem "T"
 
     ' --- Right Panel: Preview ---
     Set rightPanel = AddFrame(mForm, "fraPreview", 274, 58, 480, 366, CLR_CARD_BG)
@@ -318,8 +328,6 @@ Private Sub ApplyLanguage()
     lblScale.Caption = CSA_Tr("SCALE")
 
     lblFlight1.Caption = CSA_Tr("FLIGHT1")
-    lblFlight2.Caption = CSA_Tr("FLIGHT2")
-    lblFlight3.Caption = CSA_Tr("FLIGHT3")
     lblLanding.Caption = CSA_Tr("MID_LAND")
     lblUpperLanding.Caption = CSA_Tr("UP_LAND")
     lblWellGap.Caption = CSA_Tr("WELL_GAP")
@@ -327,8 +335,10 @@ Private Sub ApplyLanguage()
     lblDirection.Caption = CSA_Tr("DIR")
     lblSectionMark.Caption = CSA_Tr("SEC_MARK")
     lblDimStyle.Caption = CSA_Tr("DIMSTYLE")
-    lblInsertXY.Caption = CSA_Tr("INSERT_XY")
-    cmdPickPoint.Caption = CSA_Tr("PICK")
+    lblCover.Caption = CSA_Tr("COVER")
+    lblMainBar.Caption = CSA_Tr("MAIN_BAR")
+    lblDistBar.Caption = CSA_Tr("DIST_BAR")
+    lblAnchorSym.Caption = CSA_Tr("ANCHOR_D")
 
     chkDimensions.Caption = CSA_Tr("OPT_DIM")
     chkRebar.Caption = CSA_Tr("OPT_REBAR")
@@ -342,7 +352,6 @@ Private Sub ApplyLanguage()
     cmdClear.Caption = CSA_Tr("BTN_CLEAR")
     cmdCancel.Caption = CSA_Tr("BTN_CANCEL")
 
-    ' Rebuild stair type combo items while preserving selected index
     prevTypeIdx = cboStairType.ListIndex
     If prevTypeIdx < 0 Then prevTypeIdx = StairTypeToIndex(gCSAStair.StairType)
     cboStairType.Clear
@@ -395,6 +404,11 @@ End Sub
 Public Sub OnFieldChanged(ByVal fieldKey As String)
     Dim v As CSAStairInput, msg As String
     If mUpdating Then Exit Sub
+    ' Manual geometry edits switch back from raw Excel 24-pt mode to parametric mode.
+    If fieldKey = "width" Or fieldKey = "elev" Or fieldKey = "riser" Or _
+       fieldKey = "tread" Or fieldKey = "slab" Or fieldKey = "flight" Or fieldKey = "plan" Then
+        gCSAStair.HasExcelCoords = False
+    End If
     If fieldKey = "elev" Or fieldKey = "riser" Then
         If TryReadForm(v, msg, True) Then
             mUpdating = True
@@ -466,8 +480,14 @@ Private Function TryReadForm(ByRef v As CSAStairInput, ByRef message As String, 
     v.StartDirection = CStr(cboDirection.Value)
     v.SectionMark = Trim$(CStr(txtSectionMark.Value))
     v.DimStyleName = CStr(cboDimStyle.Value)
-    v.InsertX = CDbl(txtX.Value)
-    v.InsertY = CDbl(txtY.Value)
+    v.CoverMm = CDbl(txtCover.Value)
+    v.FlightBotBar = Trim$(CStr(txtMainBar.Value))
+    v.FlightTopBar = v.FlightBotBar
+    v.LowerLandingBotBar = v.FlightBotBar
+    v.LowerLandingTopBar = v.FlightBotBar
+    v.DistBar = Trim$(CStr(txtDistBar.Value))
+    v.AnchorFactor = CDbl(txtAnchorFactor.Value)
+    v.BarSymbol = CStr(cboBarSymbol.Value)
     v.DrawDimensions = CBool(chkDimensions.Value)
     v.PreviewRebar = CBool(chkRebar.Value)
     v.CreateLayers = CBool(chkCreateLayers.Value)
@@ -481,6 +501,8 @@ Private Function TryReadForm(ByRef v As CSAStairInput, ByRef message As String, 
         v.Flight3Risers = CLng(txtFlight3.Value)
     End If
 
+    If v.CoverMm <= 0# Then message = "Cover must be positive.": Exit Function
+    If v.AnchorFactor <= 0# Then message = "Anchor factor must be positive.": Exit Function
     TryReadForm = CSA_ValidateInput(v, message)
     Exit Function
 ParseError:
@@ -511,8 +533,11 @@ Private Sub WriteForm(ByRef v As CSAStairInput)
     SelectComboValue cboDirection, v.StartDirection
     txtSectionMark.Value = v.SectionMark
     SelectComboValue cboDimStyle, v.DimStyleName
-    txtX.Value = FormatTrim(v.InsertX)
-    txtY.Value = FormatTrim(v.InsertY)
+    txtCover.Value = FormatTrim(v.CoverMm)
+    txtMainBar.Value = v.FlightBotBar
+    txtDistBar.Value = v.DistBar
+    txtAnchorFactor.Value = FormatTrim(v.AnchorFactor)
+    SelectComboValue cboBarSymbol, v.BarSymbol
     chkDimensions.Value = v.DrawDimensions
     chkRebar.Value = v.PreviewRebar
     chkCreateLayers.Value = v.CreateLayers
@@ -535,6 +560,20 @@ Private Sub SavePreferences(ByRef v As CSAStairInput)
     SaveSetting REG_APP, REG_SECTION, "DimStyle", v.DimStyleName
     SaveSetting REG_APP, REG_SECTION, "Language", CSA_CurrentLang()
 End Sub
+
+Private Function PickInsertionPoint(ByVal promptText As String, ByRef outX As Double, ByRef outY As Double) As Boolean
+    Dim doc As Object, pt As Variant
+    On Error GoTo Cancelled
+    Set doc = CSA_CadDocument()
+    mForm.Hide
+    pt = doc.Utility.GetPoint(, vbCrLf & promptText)
+    outX = CDbl(pt(0))
+    outY = CDbl(pt(1))
+    PickInsertionPoint = True
+    Exit Function
+Cancelled:
+    PickInsertionPoint = False
+End Function
 
 Private Function FormatTrim(ByVal num As Double) As String
     Dim s As String
@@ -578,6 +617,7 @@ End Sub
 Private Sub cboStairType_Change()
     Dim v As CSAStairInput, msg As String
     If mUpdating Then Exit Sub
+    gCSAStair.HasExcelCoords = False
     UpdateFlightEnableState
     If TryReadForm(v, msg, True) Then
         mUpdating = True
@@ -601,6 +641,10 @@ Private Sub cboDimStyle_Change()
     If Not mUpdating Then RefreshPreview
 End Sub
 
+Private Sub cboBarSymbol_Change()
+    If Not mUpdating Then RefreshPreview
+End Sub
+
 Private Sub chkDimensions_Click()
     If Not mUpdating Then RefreshPreview
 End Sub
@@ -611,24 +655,6 @@ End Sub
 
 Private Sub mpgPreview_Change()
     If Not mUpdating Then RefreshPreview
-End Sub
-
-Private Sub cmdPickPoint_Click()
-    Dim doc As Object, pt As Variant
-    On Error GoTo Cancelled
-    Set doc = CSA_CadDocument()
-    mForm.Hide
-    pt = doc.Utility.GetPoint(, vbCrLf & CSA_Tr("PICK_PROMPT"))
-    mUpdating = True
-    txtX.Value = FormatTrim(CDbl(pt(0)))
-    txtY.Value = FormatTrim(CDbl(pt(1)))
-    mUpdating = False
-    mForm.Show
-    RefreshPreview
-    Exit Sub
-Cancelled:
-    On Error Resume Next
-    mForm.Show
 End Sub
 
 Private Sub cmdLoadExcel_Click()
@@ -657,7 +683,7 @@ Private Sub cmdLoadExcel_Click()
 End Sub
 
 Private Sub cmdPreview_Click()
-    Dim v As CSAStairInput, msg As String
+    Dim v As CSAStairInput, msg As String, px As Double, py As Double
     On Error GoTo Failed
     If Not TryReadForm(v, msg, False) Then
         lblStatus.ForeColor = CLR_ERR_RED
@@ -665,52 +691,82 @@ Private Sub cmdPreview_Click()
         MsgBox msg, vbExclamation, "CSA Stair Drawing"
         Exit Sub
     End If
+    If Not PickInsertionPoint(CSA_Tr("PICK_PREV"), px, py) Then
+        lblStatus.ForeColor = CLR_TEXT_MUTED
+        lblStatus.Caption = CSA_Tr("MSG_CANCEL_PICK")
+        mForm.Show
+        Exit Sub
+    End If
+    v.InsertX = px: v.InsertY = py
     gCSAStair = v
     SavePreferences gCSAStair
-    RefreshPreview
     CSA_RenderPreview gCSAStair
     lblStatus.ForeColor = CLR_NAVY
     lblStatus.Caption = CSA_Tr("MSG_PREVIEW_OK")
+    mForm.Show
+    RefreshPreview
     Exit Sub
 Failed:
+    On Error Resume Next
+    mForm.Show
     lblStatus.ForeColor = CLR_ERR_RED
     lblStatus.Caption = Err.Description
     MsgBox Err.Description, vbExclamation, "CSA Stair Drawing"
 End Sub
 
 Private Sub cmdDrawSection_Click()
-    Dim v As CSAStairInput, msg As String
+    Dim v As CSAStairInput, msg As String, px As Double, py As Double
     On Error GoTo Failed
     If Not TryReadForm(v, msg, False) Then
         MsgBox msg, vbExclamation, "CSA Stair Drawing"
         Exit Sub
     End If
+    If Not PickInsertionPoint(CSA_Tr("PICK_SEC"), px, py) Then
+        lblStatus.ForeColor = CLR_TEXT_MUTED
+        lblStatus.Caption = CSA_Tr("MSG_CANCEL_PICK")
+        mForm.Show
+        Exit Sub
+    End If
+    v.InsertX = px: v.InsertY = py
     gCSAStair = v
     SavePreferences gCSAStair
     CSA_DrawSectionFinal gCSAStair
     lblStatus.ForeColor = CLR_NAVY
     lblStatus.Caption = CSA_Tr("MSG_SEC_OK") & CSA_LAYER_CONCRETE
+    mForm.Show
     Exit Sub
 Failed:
+    On Error Resume Next
+    mForm.Show
     lblStatus.ForeColor = CLR_ERR_RED
     lblStatus.Caption = Err.Description
     MsgBox Err.Description, vbExclamation, "CSA Stair Drawing"
 End Sub
 
 Private Sub cmdDrawPlan_Click()
-    Dim v As CSAStairInput, msg As String
+    Dim v As CSAStairInput, msg As String, px As Double, py As Double
     On Error GoTo Failed
     If Not TryReadForm(v, msg, False) Then
         MsgBox msg, vbExclamation, "CSA Stair Drawing"
         Exit Sub
     End If
+    If Not PickInsertionPoint(CSA_Tr("PICK_PLAN"), px, py) Then
+        lblStatus.ForeColor = CLR_TEXT_MUTED
+        lblStatus.Caption = CSA_Tr("MSG_CANCEL_PICK")
+        mForm.Show
+        Exit Sub
+    End If
+    v.InsertX = px: v.InsertY = py
     gCSAStair = v
     SavePreferences gCSAStair
     CSA_DrawPlanFinal gCSAStair
     lblStatus.ForeColor = CLR_NAVY
     lblStatus.Caption = CSA_Tr("MSG_PLAN_OK") & CSA_LAYER_PLAN
+    mForm.Show
     Exit Sub
 Failed:
+    On Error Resume Next
+    mForm.Show
     lblStatus.ForeColor = CLR_ERR_RED
     lblStatus.Caption = Err.Description
     MsgBox Err.Description, vbExclamation, "CSA Stair Drawing"
@@ -778,6 +834,18 @@ Private Function AddLabel(ByVal container As Object, ByVal name As String, _
     lbl.Font.Size = fontSize
     lbl.Font.Bold = bold
     Set AddLabel = lbl
+End Function
+
+Private Function AddSmallText(ByVal container As Object, ByVal name As String, _
+                              ByVal l As Double, ByVal t As Double, ByVal w As Double, _
+                              ByVal watchKey As String) As MSForms.TextBox
+    Dim tb As MSForms.TextBox
+    Set tb = container.Controls.Add("Forms.TextBox.1", name, True)
+    tb.Left = l: tb.Top = t: tb.Width = w: tb.Height = 19
+    tb.Font.Name = "Segoe UI": tb.Font.Size = 8.5
+    tb.BorderStyle = 1: tb.BorderColor = &HC0B0A0
+    WatchField tb, watchKey
+    Set AddSmallText = tb
 End Function
 
 Private Function AddLabeledText(ByVal container As Object, ByVal caption As String, _

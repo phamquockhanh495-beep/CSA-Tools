@@ -98,6 +98,15 @@ Private Function TranslateEn(ByVal key As String) As String
         Case "MSG_CLEAR_OK": TranslateEn = "CSA-PREVIEW cleared"
         Case "MSG_EXCEL_OK": TranslateEn = "Loaded Excel: "
         Case "PICK_PROMPT": TranslateEn = "Pick stair insertion point: "
+        Case "COVER": TranslateEn = "Cover (mm):"
+        Case "MAIN_BAR": TranslateEn = "Main Rebar:"
+        Case "DIST_BAR": TranslateEn = "Dist. Rebar:"
+        Case "ANCHOR_D": TranslateEn = "Anchor (x d):"
+        Case "BAR_SYM": TranslateEn = "Bar Symbol:"
+        Case "PICK_SEC": TranslateEn = "Pick stair section insertion point: "
+        Case "PICK_PLAN": TranslateEn = "Pick stair plan insertion point: "
+        Case "PICK_PREV": TranslateEn = "Pick stair preview insertion point: "
+        Case "MSG_CANCEL_PICK": TranslateEn = "Point selection cancelled."
         Case Else: TranslateEn = key
     End Select
 End Function
@@ -112,7 +121,7 @@ Private Function TranslateVi(ByVal key As String) As String
         Case "HDR_PREVIEW": TranslateVi = "  Xem tr" & ChrW$(&H01B0) & ChrW$(&H1EDB) & "c"
         Case "HDR_OPTIONS": TranslateVi = "  T" & ChrW$(&H00F9) & "y ch" & ChrW$(&H1ECD) & "n"
         Case "TAB_GENERAL": TranslateVi = "C" & ChrW$(&H01A1) & " b" & ChrW$(&H1EA3) & "n"
-        Case "TAB_PLAN_CAD": TranslateVi = "M" & ChrW$(&H1EB7) & "t b" & ChrW$(&H1EB1) & "ng & CAD"
+        Case "TAB_PLAN_CAD": TranslateVi = "Chi ti" & ChrW$(&H1EBF) & "t & Th" & ChrW$(&H00E9) & "p"
         Case "TAB_SECTION": TranslateVi = "M" & ChrW$(&H1EB7) & "t c" & ChrW$(&H1EAF) & "t"
         Case "TAB_PLAN": TranslateVi = "M" & ChrW$(&H1EB7) & "t b" & ChrW$(&H1EB1) & "ng"
         Case "STAIR_NAME": TranslateVi = "T" & ChrW$(&H00EA) & "n thang:"
@@ -165,7 +174,16 @@ Private Function TranslateVi(ByVal key As String) As String
         Case "MSG_PLAN_OK": TranslateVi = ChrW$(&H0110) & ChrW$(&H00E3) & " v" & ChrW$(&H1EBD) & " m" & ChrW$(&H1EB7) & "t b" & ChrW$(&H1EB1) & "ng tr" & ChrW$(&H00EA) & "n layer "
         Case "MSG_CLEAR_OK": TranslateVi = ChrW$(&H0110) & ChrW$(&H00E3) & " x" & ChrW$(&H00F3) & "a c" & ChrW$(&H00E1) & "c n" & ChrW$(&H00E9) & "t xem tr" & ChrW$(&H01B0) & ChrW$(&H1EDB) & "c tr" & ChrW$(&H00EA) & "n CSA-PREVIEW"
         Case "MSG_EXCEL_OK": TranslateVi = ChrW$(&H0110) & ChrW$(&H00E3) & " n" & ChrW$(&H1EA1) & "p Excel: "
-        Case "PICK_PROMPT": TranslateVi = "Ch" & ChrW$(&H1ECD) & "n " & ChrW$(&H0111) & "i" & ChrW$(&H1EC3) & "m ch" & ChrW$(&H00E8) & "n c" & ChrW$(&H1EA7) & "u thang: "
+        Case "PICK_PROMPT": TranslateVi = "Chon diem chen cau thang: "
+        Case "COVER": TranslateVi = "BTBV (mm):"
+        Case "MAIN_BAR": TranslateVi = "Th" & ChrW$(&H00E9) & "p ch" & ChrW$(&H00ED) & "nh:"
+        Case "DIST_BAR": TranslateVi = "Th" & ChrW$(&H00E9) & "p c" & ChrW$(&H1EA5) & "u t" & ChrW$(&H1EA1) & "o:"
+        Case "ANCHOR_D": TranslateVi = "Neo (x d):"
+        Case "BAR_SYM": TranslateVi = "K" & ChrW$(&H00FD) & " hi" & ChrW$(&H1EC7) & "u th" & ChrW$(&H00E9) & "p:"
+        Case "PICK_SEC": TranslateVi = "Chon diem chen mat cat cau thang: "
+        Case "PICK_PLAN": TranslateVi = "Chon diem chen mat bang cau thang: "
+        Case "PICK_PREV": TranslateVi = "Chon diem xem truoc cau thang: "
+        Case "MSG_CANCEL_PICK": TranslateVi = ChrW$(&H0110) & ChrW$(&H00E3) & " h" & ChrW$(&H1EE7) & "y ch" & ChrW$(&H1ECD) & "n " & ChrW$(&H0111) & "i" & ChrW$(&H1EC3) & "m."
         Case Else: TranslateVi = TranslateEn(key)
     End Select
 End Function

@@ -25,6 +25,8 @@ UI_FILES = (
     ('vba', 'modCSAStairGeometry.bas'),
     ('vba', 'modCSAStairPlanGeom.bas'),
     ('vba', 'modCSAStairPlanDraw.bas'),
+    ('vba', 'modCSAStairSectionGeom.bas'),
+    ('vba', 'modCSAStairSectionDraw.bas'),
     ('vba', 'modCSAStairFormPreview.bas'),
     ('vba', 'modCSAStairExcel.bas'),
     ('vba', 'modCSAStairLegacy.bas'),
@@ -37,6 +39,7 @@ UI_FILES = (
     ('ui', 'frmCSAStair.code.bas'),
     ('ui', 'frmCSAStair.layout.md'),
     ('vba', 'API-COMPATIBILITY.md'),
+    ('tools', 'CSA_DST.lsp'),
     ('tools', 'Update_CSA_Staicase_DVB.vbs'),
 )
 

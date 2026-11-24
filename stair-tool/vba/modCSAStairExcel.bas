@@ -1,10 +1,8 @@
 Attribute VB_Name = "modCSAStairExcel"
 Option Explicit
 
-' Reads stair inputs from the CSA Excel workbook (sheet "Cau Thang Tools").
-' Prefers attaching to an already-open Excel session (read-only, never edits
-' or closes a user-opened workbook). Falls back to named ranges if the sheet
-' is absent.
+' Reads stair concrete & rebar parameters + 24-point section contract from
+' sheet "Cau Thang Tools" (preferring an already-open Excel session, read-only).
 
 Public Function CSA_LoadInputFromExcel(ByVal filePath As String, ByRef v As CSAStairInput, ByRef message As String) As Boolean
     Dim xl As Object, wb As Object, ws As Object
@@ -13,13 +11,15 @@ Public Function CSA_LoadInputFromExcel(ByVal filePath As String, ByRef v As CSAS
     Dim bottomElev As Double, floorH As Double, widthVal As Double
     Dim riserVal As Double, slabVal As Double, landVal As Double, uLandVal As Double
     Dim flightRun As Double, flightSteps As Long, stairTitle As String
+    Dim r As Long, ptCount As Long, idVal As Variant, xVal As Variant, yVal As Variant
+    Dim downVal As Double, coverVal As Double, ancVal As Double
 
     On Error GoTo Fail
     keepOpen = v.OpenExcel
     sepPos = InStrRev(filePath, "\")
     fileName = IIf(sepPos > 0, Mid$(filePath, sepPos + 1), filePath)
 
-    ' 1. Try attaching to an already-running Excel session first.
+    ' 1. Attach to already-running Excel session first (never edits or closes user's workbook).
     On Error Resume Next
     Set xl = GetObject(, "Excel.Application")
     On Error GoTo Fail
@@ -33,7 +33,7 @@ Public Function CSA_LoadInputFromExcel(ByVal filePath As String, ByRef v As CSAS
         Next wbItem
     End If
 
-    ' 2. If not open yet, open read-only in a temporary Excel session (or keep open if requested).
+    ' 2. Otherwise open read-only in a temporary Excel session.
     If wb Is Nothing Then
         If xl Is Nothing Then
             Set xl = CreateObject("Excel.Application")
@@ -69,14 +69,57 @@ Public Function CSA_LoadInputFromExcel(ByVal filePath As String, ByRef v As CSAS
         If landVal > 0# Then v.Landing = landVal
         uLandVal = CSA_CellNumber(ws, "BA19", v.UpperLanding)
         If uLandVal >= 0# Then v.UpperLanding = uLandVal
+        downVal = CSA_CellNumber(ws, "D33", v.BeamDownstand)
+        If downVal >= 0# Then v.BeamDownstand = downVal
 
         riserVal = CSA_CellNumber(ws, "AV21", v.Riser)
         If riserVal > 0# Then v.Riser = riserVal
+        v.ExcelLowerSteps = CLng(CSA_CellNumber(ws, "U28", 0#))
         flightSteps = CLng(CSA_CellNumber(ws, "AI23", 0#))
+        v.ExcelFlightSteps = flightSteps
         flightRun = CSA_CellNumber(ws, "Z19", 0#)
         If flightSteps > 0 And flightRun > 0# Then
             v.Tread = flightRun / CDbl(flightSteps)
         End If
+
+        ' Rebar contract cells (BJ28:BJ39, Z23:Z26)
+        coverVal = CSA_CellNumber(ws, "BJ28", v.CoverMm)
+        If coverVal > 0# Then v.CoverMm = coverVal
+        v.LowerLandingBotBar = CSA_CellText(ws, "BJ32", v.LowerLandingBotBar)
+        v.LowerLandingTopBar = CSA_CellText(ws, "BJ33", v.LowerLandingTopBar)
+        v.FlightBotBar = CSA_CellText(ws, "BJ34", v.FlightBotBar)
+        v.FlightTopBar = CSA_CellText(ws, "BJ35", v.FlightTopBar)
+        v.DistBar = CSA_CellText(ws, "BJ36", v.DistBar)
+        v.RebarLayers = CLng(CSA_CellNumber(ws, "BJ37", CDbl(v.RebarLayers)))
+        If v.RebarLayers < 1 Or v.RebarLayers > 2 Then v.RebarLayers = 2
+        ancVal = CSA_CellNumber(ws, "BJ38", v.AnchorFactor)
+        If ancVal > 0# Then v.AnchorFactor = ancVal
+        v.StartBarMark = CLng(CSA_CellNumber(ws, "BJ39", CDbl(v.StartBarMark)))
+        If v.StartBarMark < 1 Then v.StartBarMark = 1
+        v.HasUpperLandingBars = CSA_CellFlag(ws, "Z23", True)
+        v.HasLowerLandingBars = CSA_CellFlag(ws, "Z24", True)
+        v.HasUpperLandingDots = CSA_CellFlag(ws, "Z25", True)
+        v.HasLowerLandingDots = CSA_CellFlag(ws, "Z26", True)
+
+        ' Read 24-point concrete coordinate table BY2:CA25 (columns 77, 78, 79)
+        ptCount = 0
+        For r = 2 To 25
+            idVal = ws.Cells(r, 77).Value
+            xVal = ws.Cells(r, 78).Value
+            yVal = ws.Cells(r, 79).Value
+            If IsEmpty(idVal) Or Not IsNumeric(xVal) Or Not IsNumeric(yVal) Then Exit For
+            v.ExcelRawX(ptCount) = CDbl(xVal)
+            v.ExcelRawY(ptCount) = CDbl(yVal)
+            ptCount = ptCount + 1
+        Next r
+        If ptCount = 24 Then
+            v.HasExcelCoords = True
+            v.ExcelPointCount = 24
+        Else
+            v.HasExcelCoords = False
+            v.ExcelPointCount = 0
+        End If
+
         CSA_DistributeRisers v
     Else
         v.StairName = CSA_NamedText(wb, "StairName", v.StairName)
@@ -88,13 +131,11 @@ Public Function CSA_LoadInputFromExcel(ByVal filePath As String, ByRef v As CSAS
         v.Tread = CSA_NamedNumber(wb, "TreadDepth", v.Tread)
         v.Landing = CSA_NamedNumber(wb, "LandingLength", v.Landing)
         v.Slab = CSA_NamedNumber(wb, "SlabThickness", v.Slab)
-        v.InsertX = CSA_NamedNumber(wb, "InsertX", v.InsertX)
-        v.InsertY = CSA_NamedNumber(wb, "InsertY", v.InsertY)
         v.Flight1Risers = CLng(CSA_NamedNumber(wb, "Flight1Risers", v.Flight1Risers))
         v.Flight2Risers = CLng(CSA_NamedNumber(wb, "Flight2Risers", v.Flight2Risers))
     End If
 
-    If openedWorkbook And Not v.OpenExcel Then
+    If openedWorkbook And Not keepOpen Then
         If Not wb Is Nothing Then wb.Close False
         If createdExcel And Not xl Is Nothing Then xl.Quit
     End If
@@ -103,7 +144,7 @@ Public Function CSA_LoadInputFromExcel(ByVal filePath As String, ByRef v As CSAS
 Fail:
     message = "Excel load failed: " & Err.Description
     On Error Resume Next
-    If openedWorkbook And Not v.OpenExcel Then
+    If openedWorkbook And Not keepOpen Then
         If Not wb Is Nothing Then wb.Close False
         If createdExcel And Not xl Is Nothing Then xl.Quit
     End If
@@ -135,6 +176,16 @@ Private Function CSA_CellText(ByVal ws As Object, ByVal addr As String, ByVal fa
     Exit Function
 UseFallback:
     CSA_CellText = fallback
+End Function
+
+Private Function CSA_CellFlag(ByVal ws As Object, ByVal addr As String, ByVal fallback As Boolean) As Boolean
+    Dim s As String
+    s = UCase$(CSA_CellText(ws, addr, IIf(fallback, "YES", "NO")))
+    If s = "NO" Or s = "0" Or s = "FALSE" Or s = "N" Then
+        CSA_CellFlag = False
+    Else
+        CSA_CellFlag = True
+    End If
 End Function
 
 Private Function CSA_NamedNumber(ByVal wb As Object, ByVal name As String, ByVal fallback As Double) As Double

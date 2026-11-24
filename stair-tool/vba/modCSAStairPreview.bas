@@ -3,6 +3,7 @@ Option Explicit
 
 Public Sub CSA_RenderPreview(ByRef v As CSAStairInput)
     Dim message As String
+    Dim planInput As CSAStairInput
     If Not CSA_HostReady() Then Exit Sub
     If Not CSA_ValidateInput(v, message) Then
         MsgBox message, vbExclamation, "CSA Stair Drawing"
@@ -12,11 +13,10 @@ Public Sub CSA_RenderPreview(ByRef v As CSAStairInput)
     CSA_RenderLayer = CSA_LAYER_PREVIEW
     CSA_EnsureLayers
     CSA_ClearPreview
-    CSA_BuildSectionPreview v
+    CSA_DrawSectionModel v, True
     ' Draw full Plan View preview offset above Section preview to avoid overlap
-    Dim planInput As CSAStairInput
     planInput = v
-    planInput.InsertY = v.InsertY + v.FloorHeight + 1600#
+    planInput.InsertY = v.InsertY + v.FloorHeight + 1800#
     CSA_DrawPlanModel planInput, True
     ThisDrawing.Regen CSA_AC_ACTIVE_VIEWPORT
     ThisDrawing.Application.ZoomExtents
@@ -33,7 +33,7 @@ Public Sub CSA_DrawSectionFinal(ByRef v As CSAStairInput)
     CSA_RenderLayer = CSA_LAYER_CONCRETE
     CSA_EnsureLayer CSA_LAYER_CONCRETE, CSA_DefaultLayerColor(CSA_LAYER_CONCRETE), v.CreateLayers
     CSA_ClearPreview
-    CSA_BuildSectionPreview v
+    CSA_DrawSectionModel v, False
     ThisDrawing.Regen CSA_AC_ACTIVE_VIEWPORT
 End Sub
 

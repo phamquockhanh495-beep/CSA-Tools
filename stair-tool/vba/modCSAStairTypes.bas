@@ -55,6 +55,29 @@ Public Type CSAStairInput
     CreateLayers As Boolean
     OpenExcel As Boolean
     ExcelPath As String
+    ' Rebar & structural section detailing parameters
+    CoverMm As Double
+    LowerLandingBotBar As String
+    LowerLandingTopBar As String
+    FlightBotBar As String
+    FlightTopBar As String
+    DistBar As String
+    RebarLayers As Long
+    AnchorFactor As Double
+    StartBarMark As Long
+    BarSymbol As String
+    BeamDownstand As Double
+    ' Optional 24-point Excel contract payload (Cau Thang Tools)
+    HasExcelCoords As Boolean
+    ExcelPointCount As Long
+    ExcelRawX(0 To 23) As Double
+    ExcelRawY(0 To 23) As Double
+    ExcelLowerSteps As Long
+    ExcelFlightSteps As Long
+    HasUpperLandingBars As Boolean
+    HasLowerLandingBars As Boolean
+    HasUpperLandingDots As Boolean
+    HasLowerLandingDots As Boolean
 End Type
 
 Public Type CSAFlight
@@ -108,6 +131,25 @@ Public Function CSA_DefaultInput() As CSAStairInput
     v.CreateLayers = True
     v.OpenExcel = False
     v.ExcelPath = ""
+    v.CoverMm = 25#
+    v.LowerLandingBotBar = "12a150"
+    v.LowerLandingTopBar = "12a150"
+    v.FlightBotBar = "12a150"
+    v.FlightTopBar = "12a150"
+    v.DistBar = "10a200"
+    v.RebarLayers = 2
+    v.AnchorFactor = 30#
+    v.StartBarMark = 1
+    v.BarSymbol = "%%C"
+    v.BeamDownstand = 250#
+    v.HasExcelCoords = False
+    v.ExcelPointCount = 0
+    v.ExcelLowerSteps = 0
+    v.ExcelFlightSteps = 12
+    v.HasUpperLandingBars = True
+    v.HasLowerLandingBars = True
+    v.HasUpperLandingDots = True
+    v.HasLowerLandingDots = True
     CSA_DefaultInput = v
 End Function
 

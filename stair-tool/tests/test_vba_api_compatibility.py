@@ -110,17 +110,19 @@ class VbaApiCompatibilityTests(unittest.TestCase):
         self.assertIn('Attribute VB_Name = "clsCSAStairFormController"', ctrl)
         self.assertIn('Attribute VB_Name = "clsCSAStairFieldWatcher"', watcher)
         self.assertIn('clsCSAStairFormController', form_code)
-        # Mockup + manual plan controls all present
+        # Mockup + manual plan/rebar controls present; no manual X/Y boxes (direct pick on draw)
         for name in ('txtStairName', 'cboStairType', 'txtWidth', 'txtBottomElev', 'txtTopElev',
                      'txtRiser', 'txtTread', 'txtSlab', 'cboScale',
                      'txtFlight1', 'txtFlight2', 'txtFlight3', 'txtLanding', 'txtUpperLanding',
                      'txtWellGap', 'txtSupportWidth', 'cboDirection', 'txtSectionMark',
-                     'cboDimStyle', 'txtX', 'txtY', 'cmdPickPoint',
+                     'cboDimStyle', 'txtCover', 'txtMainBar', 'txtDistBar', 'txtAnchorFactor',
+                     'cboBarSymbol', 'PickInsertionPoint',
                      'imgSectionPreview', 'imgPlanPreview', 'lblSummary',
                      'chkDimensions', 'chkRebar', 'chkCreateLayers', 'chkOpenExcel',
                      'cmdLoadExcel', 'cmdPreview', 'cmdDrawSection', 'cmdDrawPlan',
                      'cmdClear', 'cmdCancel'):
             self.assertIn(name, ctrl)
+        self.assertNotIn('cmdPickPoint', ctrl)
         self.assertIn('CSA_PickExcelFile', ctrl)
         self.assertIn('CSA_RenderSectionBitmap', ctrl)
         self.assertIn('CSA_RenderPlanBitmap', ctrl)
@@ -156,6 +158,7 @@ class VbaApiCompatibilityTests(unittest.TestCase):
     def test_vba_layers_migrated_from_gb_to_csa(self):
         for path in (VBA / 'modCSAStairTypes.bas', VBA / 'modCSAStairAdapter.bas',
                      VBA / 'modCSAStairPlanGeom.bas', VBA / 'modCSAStairPlanDraw.bas',
+                     VBA / 'modCSAStairSectionGeom.bas', VBA / 'modCSAStairSectionDraw.bas',
                      ROOT / 'CSA_StairCase_Compat.bas'):
             text = path.read_text()
             self.assertNotRegex(text, r'"\d{2}-GB-[^"]+"', f'Legacy GB layer found in {path.name}')
@@ -173,7 +176,7 @@ class VbaApiCompatibilityTests(unittest.TestCase):
         en_keys = set(re.findall(r'Case "([A-Z0-9_]+)":', en_block))
         vi_keys = set(re.findall(r'Case "([A-Z0-9_]+)":', vi_block))
         self.assertEqual(en_keys, vi_keys)
-        self.assertGreaterEqual(len(en_keys), 40)
+        self.assertGreaterEqual(len(en_keys), 45)
         ctrl_src = (UI / 'clsCSAStairFormController.cls').read_text()
         self.assertIn('cboLanguage', ctrl_src)
         self.assertIn('ApplyLanguage', ctrl_src)
@@ -188,6 +191,21 @@ class VbaApiCompatibilityTests(unittest.TestCase):
         self.assertLess(draw.index('CSA_HostReady()'), draw.index('CSA_BuildPlanModel'))
         preview = (VBA / 'modCSAStairPreview.bas').read_text()
         self.assertIn('CSA_DrawPlanModel', preview)
+
+    def test_phase4_section_rebar_engine_and_dst_command(self):
+        geom = (VBA / 'modCSAStairSectionGeom.bas').read_text()
+        self.assertLess(geom.rindex('End Type'), geom.index('Public Sub CSA_BuildSectionModel'))
+        self.assertNotIn('ThisDrawing', geom)
+        self.assertNotIn('ModelSpace', geom)
+        draw = (VBA / 'modCSAStairSectionDraw.bas').read_text()
+        self.assertIn('Public Sub CSA_DrawSectionModel', draw)
+        self.assertLess(draw.index('CSA_HostReady()'), draw.index('CSA_BuildSectionModel'))
+        preview = (VBA / 'modCSAStairPreview.bas').read_text()
+        self.assertIn('CSA_DrawSectionModel', preview)
+        main = (VBA / 'modCSAStairMain.bas').read_text()
+        self.assertIn('Public Sub DST()', main)
+        dst_lsp = (TOOLS / 'CSA_DST.lsp').read_text()
+        self.assertIn('(defun c:DST', dst_lsp)
 
 
 if __name__ == '__main__':
